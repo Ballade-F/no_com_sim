@@ -33,9 +33,9 @@ class Map():
             min_y_index = int(np.min(ob_points[:, 1]))
             max_y_index = int(np.max(ob_points[:, 1]))
 
-            #debug
-            print(ob_points)
-            print(min_x_index, max_x_index, min_y_index, max_y_index)
+            # #debug
+            # print(ob_points)
+            # print(min_x_index, max_x_index, min_y_index, max_y_index)
 
             # Create an edge table
             edge_table = []
@@ -107,8 +107,8 @@ class Map():
             
             self.obstacles.append(ob_points)
 
-            #debug
-            print(ob_points)
+            # #debug
+            # print(ob_points)
 
         self.starts = rng.uniform(0, 1, (self.n_starts, 2))
         self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
