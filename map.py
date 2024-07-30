@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #obstacle generator parameters
-ob_r_factor = 0.5
-ob_points_min = 3
-ob_points_max = 10
+ob_r_factor = 0.7
+ob_points_min = 5
+ob_points_max = 15
 
 
 class Map():
@@ -33,6 +33,10 @@ class Map():
             min_y_index = int(np.min(ob_points[:, 1]))
             max_y_index = int(np.max(ob_points[:, 1]))
 
+            #debug
+            print(ob_points)
+            print(min_x_index, max_x_index, min_y_index, max_y_index)
+
             # Create an edge table
             edge_table = []
             for i in range(len(ob_points)):
@@ -44,13 +48,14 @@ class Map():
                         x1, y1, x2, y2 = x2, y2, x1, y1
                     edge_table.append([y1, y2, x1, (x2 - x1) / (y2 - y1)])
 
-            active_edge_table = []
+            
             if min_y_index == max_y_index:
                 self.grid_map[min_x_index:max_x_index + 1, min_y_index] = 1
                 continue
 
             #if the x_axis ray crosses the polygon, the grids both up and down the ray should be filled
             for y in range(min_y_index + 1, max_y_index + 1):
+                active_edge_table = []
                 for edge in edge_table:
                     if edge[0] <= y and edge[1] > y:
                         active_edge_table.append(edge)
@@ -102,6 +107,9 @@ class Map():
             
             self.obstacles.append(ob_points)
 
+            #debug
+            print(ob_points)
+
         self.starts = rng.uniform(0, 1, (self.n_starts, 2))
         self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
 
@@ -112,7 +120,7 @@ class Map():
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         for ob_points in self.obstacles:
-            ax.fill(ob_points[:, 0], ob_points[:, 1], 'k')
+            ax.fill(ob_points[:, 0], ob_points[:, 1], 'r')
         ax.scatter(self.starts[:, 0], self.starts[:, 1], c='b')
         ax.scatter(self.tasks[:, 0], self.tasks[:, 1], c='r')
         plt.show()
@@ -122,11 +130,14 @@ class Map():
         ax.set_xlim(0, self.n_x)
         ax.set_ylim(0, self.n_y)
         img = 255-self.grid_map*255
+        img = img.transpose()
         ax.imshow(img, cmap='gray')
+        for ob_points in self.obstacles:
+            ax.fill(ob_points[:, 0]*self.n_x, ob_points[:, 1]*self.n_y, 'r')
         plt.show()
 
 if __name__ == '__main__':
-    map = Map(1, 2, 2, 100, 100, 1, 1)
+    map = Map(3, 2, 2, 100, 100, 1, 1)
     map.setObstacleRandn(2)
     map.plot()
     map.plotGrid()
