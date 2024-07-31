@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import map
+import heapq
 
 class astar_node():
     def __init__(self, x:int, y:int):
@@ -15,6 +16,9 @@ class astar_node():
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
+    
+    def __lt__(self, other):
+        return self.f < other.f
 
     def reset(self):
         self.g = float('inf')
@@ -74,11 +78,13 @@ class AStarPlanner():
         start_node.h = self._heuristic(start_node, goal_node)
         start_node.f = start_node.g + start_node.h
         open_list = []
-        open_list.append(start_node)
+        heapq.heappush(open_list,  start_node)
         start_node.set_flag = 1
 
         while len(open_list) > 0:
             current_node = open_list.pop(0)
+            if current_node.set_flag == 2:
+                continue
             current_node.set_flag = 2
             if current_node == goal_node:
                 path = []
@@ -98,15 +104,25 @@ class AStarPlanner():
                     neighbor_node.h = self._heuristic(neighbor_node, goal_node)
                     neighbor_node.f = neighbor_node.g + neighbor_node.h
                     neighbor_node.parent = current_node
-                    heapq.heappush(open_list, (neighbor_node.f, neighbor_node))
+                    heapq.heappush(open_list, neighbor_node)
                     neighbor_node.set_flag = 1
                 elif tentative_g < neighbor_node.g:
                     neighbor_node.g = tentative_g
                     neighbor_node.f = neighbor_node.g + neighbor_node.h
                     neighbor_node.parent = current_node
-                    heapq.heappush(open_list, (neighbor_node.f, neighbor_node))
+                    heapq.heappush(open_list, neighbor_node)
                 
 
         return None
 
     
+if __name__ == '__main__':
+    grid_map = np.zeros((100, 100))
+    grid_map[20:40, 20:40] = 1
+    grid_map[60:80, 60:80] = 1
+    astar_planner = AStarPlanner(grid_map)
+    path = astar_planner.plan((10, 10), (90, 90))
+    # print(path)
+    plt.imshow(grid_map)
+    plt.plot([x[0] for x in path], [x[1] for x in path], 'r')
+    plt.show()
