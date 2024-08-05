@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import sparse
+import osqp
+from qpsolvers import solve_qp
 
 #state space model
 #state: [x, y, yaw, v, w]
@@ -102,7 +105,119 @@ class ExtendKalman():
         
         return self.state.X
 
+#x: [x, y, yaw], u: [v, w], used for MPC
+class CarModel():
+    def __init__(self, x0:float=0, y0:float=0, yaw0:float=0, v0:float=0, w0:float=0, dt:float=0.1):
+        self.x = x0
+        self.y = y0
+        self.yaw = yaw0
+        self.v = v0
+        self.w = w0
 
-    #x: [x, y, yaw], u: [v, w]
-    class MPCCtrl():
+        self.dt = dt
+
+        self.n_x = 3
+        self.n_u = 2
+        #asmatrix : Shallow copy
+        self.state = np.asmatrix([self.x, self.y, self.yaw]).T
+
+    #v at t, w at t, update x, y, yaw at t+1
+    def update(self,v:float, w:float):
+        self.x = self.x + v*np.cos(self.yaw)*self.dt
+        self.y = self.y + v*np.sin(self.yaw)*self.dt
+        self.yaw = self.yaw + w*self.dt
+        self.v = v
+        self.w = w
         
+    # return linearized and discretized state matrix A and B at state_ref
+    def stateSpaceModel(self, state_ref:np.array, u_ref:np.array):
+        x_ref = state_ref[0]
+        y_ref = state_ref[1]
+        yaw_ref = state_ref[2]
+        v_ref = u_ref[0]
+        w_ref = u_ref[1]
+
+        A_hat = np.asmatrix([[1, 0, -v_ref*np.sin(yaw_ref)*self.dt],
+                         [0, 1, v_ref*np.cos(yaw_ref)*self.dt],
+                         [0, 0, 1]])
+        B_hat = np.asmatrix([[np.cos(yaw_ref)*self.dt, 0],
+                         [np.sin(yaw_ref)*self.dt, 0],
+                         [0, self.dt]])
+        return A_hat, B_hat
+        
+        
+
+#x: [x, y, yaw], u: [v, w]
+class MPCCtrl():
+    def __init__(self, A_hat, B_hat, Q, R, Qf, N = 10):
+        self.A_hat = A_hat
+        self.B_hat = B_hat
+        self.Q = Q
+        self.R = R
+        self.Qf = Qf
+        self.N = N    # prediction horizon
+        self.nx = B_hat.shape[0]
+        self.nu = B_hat.shape[1]
+        
+    # optimize state from k+1 to k+N, u from k to k+N-1
+    def solve(self, error_state0, A_hat, B_hat, Q, R, Qf, N = 10):
+        self.N = N
+        self.nx = B_hat.shape[0]
+        self.nu = B_hat.shape[1]
+        self.A_hat = A_hat
+        self.B_hat = B_hat
+        self.Q = Q
+        self.R = R
+        self.Qf = Qf
+
+        A_power = [np.linalg.matrix_power(A_hat, i) for i in range(N+1)]
+
+        # X = Mx_k + CU
+        M = np.zeros((self.N*self.nx, self.nx))
+        C = np.zeros((self.N*self.nx, self.N*self.nu))
+
+        for i in range(N):
+            M[i*self.nx:(i+1)*self.nx, :] = A_power[i+1]
+            for j in range(i):
+                C[i*self.nx:(i+1)*self.nx, j*self.nu:(j+1)*self.nu] = A_power[i-j]*B_hat
+
+        Q_bar = np.kron(np.eye(self.N + 1), Q)
+        Q_bar[self.N * self.nx : (1 + self.N) * self.nx, self.N * self.nx : (1 + self.N) * self.nx:] = Qf
+        R_bar = np.kron(np.eye(self.N), R)
+
+        #J = x.T * Q_bar * x + u.T * R_bar * u
+        #J = (M*x_k + C*u).T * Q_bar * (M*x_k + C*u) + u.T * R_bar * u
+        #J = u.T * (C.T * Q_bar * C + R_bar) * u + 2 * x_k.T * M.T * Q_bar * C * u + (x_k.T * M.T * Q_bar * M * x_k)
+        E = M.T * Q_bar * C
+        # min 0.5x^T P x + q^T x
+        P = 2 * (C.T * Q_bar * C + R_bar)
+        q = 2 * E * error_state0
+
+        #solve u
+        # Gx <= h
+        G_ = np.eye(self.N * self.nu)
+        G = np.block([                   # 不等式约束矩阵
+            [G_, np.zeros_like(G_)],
+            [np.zeros_like(G_), -G_]
+        ])
+        h = np.vstack(np.ones((2 * self.N * self.nu, 1)) * 999) # 不等式约束向量
+
+        # Ax = b
+        A = None # 等式约束矩阵
+        b = None # 等式约束向量
+
+        # 转换为稀疏矩阵的形式能加速计算
+        P = sparse.csc_matrix(P)
+        q = np.asarray(q)
+        if G is None:
+            pass
+        else:
+            G = sparse.csc_matrix(G)
+        if A is None:
+            pass
+        else:
+            A = sparse.csc_matrix(A)
+
+        res = solve_qp(P, q, G, h, A, b, solver="osqp")
+
+        return res
