@@ -52,17 +52,6 @@ class MyReferencePath:
         s = np.argmin(d) # 最近目标点索引
 
         return s
-    
-    def calc_ref_trajectory(self, track_idx, N):
-        state_ref = np.zeros((N, 3))
-        track_len = len(self.refer_path)
-        for i in range(N):
-            idx = track_idx + i+1
-            if idx >= track_len:
-                idx = track_len - 1
-            state_ref[i,:] = self.refer_path[idx, 0:3]
-        return state_ref
-        
 
 class CarModel():
     def __init__(self, x0:float=0, y0:float=0, yaw0:float=0, v0:float=0, w0:float=0, dt:float=0.1):
@@ -117,7 +106,7 @@ class MPC:
         self.nx = Bd.shape[0]
         self.nu = Bd.shape[1]
 
-    def solve(self, error_state0, state_ref, Ad, Bd, Q, R, Qf, N = 10):
+    def solve(self, x0, Ad, Bd, Q, R, Qf, N = 10):
         self.Ad = Ad
         self.Bd = Bd
         self.Q = Q
@@ -127,25 +116,29 @@ class MPC:
         self.nx = Bd.shape[0]
         self.nu = Bd.shape[1]
 
-        A_powers = [np.linalg.matrix_power(Ad, i) for i in range(N+1)]
+        A_powers = []
+        for i in range(self.N + 1):
+            A_powers.append(np.linalg.matrix_power(Ad, i))
 
-        A_ba = np.matrix(np.zeros((self.N*self.nx, self.nx)))
-        B_ba = np.matrix(np.zeros((self.N*self.nx, self.N*self.nu)))
+        C = np.zeros(((self.N + 1) * self.nx, self.N * self.nu))
+        M = np.zeros(((self.N + 1) * self.nx, self.nx))
+        for i in range(self.N + 1):
+            for j in range(self.N):
+                if i - j - 1 >= 0:
+                    C_ij = A_powers[i - j - 1] * self.Bd
+                    C[i * self.nx : (i + 1) * self.nx, j * self.nu : (j + 1) * self.nu] = C_ij
+                else:
+                    C_ij = np.zeros((self.nx, self.nu))
+                    C[i * self.nx : (i + 1) * self.nx, j * self.nu : (j + 1) * self.nu] = C_ij
+            M[i * self.nx : (i + 1) * self.nx, :] = A_powers[i]
 
-        for i in range(N):
-            A_ba[i*self.nx:(i+1)*self.nx, :] = A_powers[i+1]
-            for j in range(i+1):
-                B_ba[i*self.nx:(i+1)*self.nx, j*self.nu:(j+1)*self.nu] = A_powers[i-j]*Bd
+        Q_bar = np.kron(np.eye(self.N + 1), Q)
+        Q_bar[self.N * self.nx : (1 + self.N) * self.nx, self.N * self.nx : (1 + self.N) * self.nx:] = Qf
+        R_bar = np.kron(np.eye(self.N), R)
+        E = M.T * Q_bar * C
 
-        Q_bar = np.matrix(np.kron(np.eye(self.N), Q))
-        Q_bar[(self.N-1) * self.nx : (self.N) * self.nx, (self.N-1) * self.nx : (self.N) * self.nx:] = Qf
-        R_bar = np.matrix(np.kron(np.eye(self.N), R))
-
-        # REF = state_ref.reshape(-1, 1) - np.matrix(np.kron(np.ones((self.N+1, 1)), error_state0.reshape(-1, 1)))
-        E = A_ba * error_state0.reshape(-1, 1) - state_ref.reshape(-1, 1)
-
-        P = 2 * (B_ba.T * Q_bar * B_ba + R_bar)
-        q = 2 * B_ba.T * Q_bar * E
+        P = 2 * (C.T * Q_bar * C + R_bar)
+        q = 2 * E.T * x0
 
         # Gx <= h
         G_ = np.eye(self.N * self.nu)
@@ -194,10 +187,9 @@ def vehicle_mpc_main():
 
     vehicle = CarModel(v0=2.0)
     Q = np.matrix(np.eye(vehicle.nx) * 1)
-    R = np.matrix(np.eye(vehicle.nu) * 0.1)
+    R = np.matrix(np.eye(vehicle.nu) * 0.5)
     Qf = np.matrix(np.eye(vehicle.nx) * 1)
-    N = 10
-    mpc = MPC(np.eye(vehicle.nx), np.eye(vehicle.nu), Q, R, Qf, N)
+    mpc = MPC(np.eye(vehicle.nx), np.eye(vehicle.nu), Q, R, Qf, N = 10)
 
     # if True == IS_SAVE_GIF:
     #     camera = Camera(fig)
@@ -205,8 +197,6 @@ def vehicle_mpc_main():
     for i in range(num_steps):
         # 参考线轨迹部分
         s0 = reference_path.calc_track_error(vehicle.x, vehicle.y)
-        error0 = vehicle.state - reference_path.refer_path[s0, 0:3].reshape(-1, 1)
-        state_ref = reference_path.calc_ref_trajectory(s0, N).reshape(-1, 1) - np.kron(np.ones((N, 1)),reference_path.refer_path[s0, 0:3].reshape(-1, 1))
         # delta_ref = math.atan2(vehicle.L * k, 1)
 
         # 数学模型更新，相当于建模
@@ -217,7 +207,7 @@ def vehicle_mpc_main():
         # Bd = B * dt
 
         # 更新MPC控制器的系统矩阵并求解最优控制量
-        u_list = mpc.solve(error0, state_ref, Ad, Bd, Q, R, Qf, N)
+        u_list = mpc.solve((vehicle.state - reference_path.refer_path[s0, 0:3].reshape(-1, 1)), Ad, Bd, Q, R, Qf, 10)
         u = np.matrix(u_list[0 : nu]).T
         # u[1, 0] = u[1, 0] + delta_ref
 
