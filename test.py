@@ -19,7 +19,7 @@ if __name__ == '__main__':
         y[i] = car_state.X[1]
         yaw[i] = car_state.X[2]
         car_state.forward()
-        if i == 100:
+        if i == 10:
             car_state.update_vw(0.4, -0.15)
         if i == 200:
             car_state.update_vw(0.4, 0.25)
@@ -76,14 +76,13 @@ if __name__ == '__main__':
 
     #test MPC
     vehicle = ctrl.CarModel()
-    Q = np.matrix(np.eye(vehicle.n_x) * 2)
-    R = np.matrix(np.eye(vehicle.n_u) * 1.5)
-    Qf = np.matrix(np.eye(vehicle.n_x) * 2)
+    Q = np.matrix(np.eye(vehicle.n_x) * 1)
+    R = np.matrix(np.eye(vehicle.n_u) * 0.2)
+    Qf = np.matrix(np.eye(vehicle.n_x) * 1)
     A_hat, B_hat = vehicle.stateSpaceModel(vehicle.state, vehicle.u)
-    N_mpc = 5
+    N_mpc = 10
     mpc = ctrl.MPCCtrl(A_hat, B_hat, Q, R, Qf, N = N_mpc)
-    #debug
-    print('Q: ', Q, 'R: ', R, 'Qf: ', Qf)
+
     x_mpc = np.zeros(n)
     y_mpc = np.zeros(n)
 
@@ -97,17 +96,26 @@ if __name__ == '__main__':
     for i in range(n):
         x_mpc[i] = vehicle.x
         y_mpc[i] = vehicle.y
+
         #debug
         # print('state: ', vehicle.state)
         # print('u: ', vehicle.u)
+
         A_hat, B_hat = vehicle.stateSpaceModel(vehicle.state, vehicle.u)
+
+        #debug
+        # print('A_hat:\n', A_hat, '\n B_hat: \n', B_hat)
+
         idx = mpc.calc_track_idx(vehicle.x, vehicle.y, track_ref)
         state_error0 = vehicle.state - track_ref[idx].reshape(-1, 1)
         state_ref = mpc.calc_ref_trajectory(track_ref, idx, N_mpc)
         
         u = mpc.solve(state_error0,state_ref,A_hat,B_hat,Q,R,Qf,N_mpc)[0:vehicle.n_u]
+        u[0] = u[0] + 0.4
+
         #debug
-        print('i:', i,'u: ', u[0], u[1])
+        # print('i:', i,'u: ', u[0], u[1])
+
         vehicle.update(u[0], u[1])
 
         

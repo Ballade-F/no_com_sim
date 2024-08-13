@@ -129,6 +129,8 @@ class CarModel():
         self.yaw = self.yaw + w*self.dt
         self.v = v
         self.w = w
+        self.state = np.asmatrix([self.x, self.y, self.yaw]).T
+        self.u = np.asmatrix([self.v, self.w]).T
         
     # return linearized and discretized state matrix A and B at state_ref
     def stateSpaceModel(self, state_ref:np.array, u_ref:np.array):
@@ -164,7 +166,9 @@ class MPCCtrl():
         dx = track[:,0] - x
         dy = track[:,1] - y
         d = np.sqrt(dx**2 + dy**2)
-        idx = np.argmin(d)
+        idx = np.argmin(d)+1
+        if idx >= len(track):
+            idx = len(track) - 1
         return idx
     
     def calc_ref_trajectory(self,track,track_idx,N):
@@ -173,7 +177,7 @@ class MPCCtrl():
         for i in range(N):
             idx = track_idx + i + 1
             if idx >= track_len:
-                idx = track_len
+                idx = track_len-1
             ref_trajectory[i,:] = track[idx,:]
         return ref_trajectory
         
@@ -197,13 +201,18 @@ class MPCCtrl():
 
         for i in range(N):
             A_ba[i*self.nx:(i+1)*self.nx, :] = A_power[i+1]
-            for j in range(i):
+            for j in range(i+1):
                 B_ba[i*self.nx:(i+1)*self.nx, j*self.nu:(j+1)*self.nu] = A_power[i-j]*B_hat
+
+        #debug
+        # print('A_ba: \n', A_ba)
+        # print('B_ba: \n', B_ba)
 
         Q_bar = np.matrix(np.kron(np.eye(self.N), Q))
         Q_bar[(self.N-1) * self.nx : (self.N) * self.nx, (self.N-1) * self.nx : (self.N) * self.nx:] = Qf
         R_bar = np.matrix(np.kron(np.eye(self.N), R))
 
+#
         # error_state = X - REF = X + error_state0 - state_ref
         # REF shape = (N*nx, 1), A_ba shape = (N*nx, nx), error_state0 shape = (nx, 1)
         REF = state_ref.reshape(-1, 1) - np.matrix(np.kron(np.ones((self.N, 1)), error_state0.reshape(-1, 1)))
@@ -216,6 +225,12 @@ class MPCCtrl():
         # min 0.5x^T P x + q^T x
         P = 2 * (B_ba.T * Q_bar * B_ba + R_bar) #shape = (N*nu, N*nu)
         q = 2 * E.T * Q_bar * B_ba #shape = (1, N*nu)
+#
+        #debug
+        # E = A_ba.T * Q_bar * B_ba
+        # P = 2 * (B_ba.T * Q_bar * B_ba + R_bar)
+        # q = 2 * E.T * error_state0.reshape(-1, 1)
+
 
         #solve u
         # Gx <= h
