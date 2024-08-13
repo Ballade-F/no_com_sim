@@ -3,7 +3,7 @@ import osqp
 import numpy as np
 from scipy import sparse
 from qpsolvers import solve_qp
-from celluloid import Camera # 保存动图时用，pip install celluloid
+# from celluloid import Camera # 保存动图时用，pip install celluloid
 from matplotlib import pyplot as plt
 
 class MyReferencePath:
@@ -120,21 +120,16 @@ class MPC:
         for i in range(self.N + 1):
             A_powers.append(np.linalg.matrix_power(Ad, i))
 
-        C = np.zeros(((self.N + 1) * self.nx, self.N * self.nu))
-        M = np.zeros(((self.N + 1) * self.nx, self.nx))
-        for i in range(self.N + 1):
+        M = np.zeros(((self.N) * self.nx, self.nx))
+        C = np.zeros(((self.N) * self.nx, self.N * self.nu))
+        for i in range(self.N):
+            M[i*self.nx:(i+1)*self.nx, :] = A_powers[i+1]
             for j in range(self.N):
-                if i - j - 1 >= 0:
-                    C_ij = A_powers[i - j - 1] * self.Bd
-                    C[i * self.nx : (i + 1) * self.nx, j * self.nu : (j + 1) * self.nu] = C_ij
-                else:
-                    C_ij = np.zeros((self.nx, self.nu))
-                    C[i * self.nx : (i + 1) * self.nx, j * self.nu : (j + 1) * self.nu] = C_ij
-            M[i * self.nx : (i + 1) * self.nx, :] = A_powers[i]
+                C[i*self.nx:(i+1)*self.nx, j*self.nu:(j+1)*self.nu] = A_powers[i-j]*Bd
 
-        Q_bar = np.kron(np.eye(self.N + 1), Q)
-        Q_bar[self.N * self.nx : (1 + self.N) * self.nx, self.N * self.nx : (1 + self.N) * self.nx:] = Qf
-        R_bar = np.kron(np.eye(self.N), R)
+        Q_bar = np.matrix(np.kron(np.eye(self.N), Q))
+        Q_bar[(self.N-1) * self.nx : (self.N) * self.nx, (self.N-1) * self.nx : (self.N) * self.nx:] = Qf
+        R_bar = np.matrix(np.kron(np.eye(self.N), R))
         E = M.T * Q_bar * C
 
         P = 2 * (C.T * Q_bar * C + R_bar)
@@ -191,8 +186,8 @@ def vehicle_mpc_main():
     Qf = np.matrix(np.eye(vehicle.nx) * 1)
     mpc = MPC(np.eye(vehicle.nx), np.eye(vehicle.nu), Q, R, Qf, N = 10)
 
-    if True == IS_SAVE_GIF:
-        camera = Camera(fig)
+    # if True == IS_SAVE_GIF:
+    #     camera = Camera(fig)
 
     for i in range(num_steps):
         # 参考线轨迹部分
@@ -229,8 +224,8 @@ def vehicle_mpc_main():
         if False == IS_SAVE_GIF:
             plt.pause(0.001)
 
-        if True == IS_SAVE_GIF:
-            camera.snap()
+        # if True == IS_SAVE_GIF:
+        #     camera.snap()
 
         # 判断是否到达最后一个点
         if np.linalg.norm([vehicle.x, vehicle.y] - goal) <= 0.5:

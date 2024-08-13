@@ -19,7 +19,7 @@ if __name__ == '__main__':
         y[i] = car_state.X[1]
         yaw[i] = car_state.X[2]
         car_state.forward()
-        if i == 10:
+        if i == 100:
             car_state.update_vw(0.4, -0.15)
         if i == 200:
             car_state.update_vw(0.4, 0.25)
@@ -76,9 +76,9 @@ if __name__ == '__main__':
 
     #test MPC
     vehicle = ctrl.CarModel()
-    Q = np.matrix(np.eye(vehicle.n_x) * 1)
-    R = np.matrix(np.eye(vehicle.n_u) * 0.2)
-    Qf = np.matrix(np.eye(vehicle.n_x) * 1)
+    Q = np.matrix(np.eye(vehicle.n_x) * 3)
+    R = np.matrix(np.eye(vehicle.n_u) * 2)
+    Qf = np.matrix(np.eye(vehicle.n_x) * 3)
     A_hat, B_hat = vehicle.stateSpaceModel(vehicle.state, vehicle.u)
     N_mpc = 10
     mpc = ctrl.MPCCtrl(A_hat, B_hat, Q, R, Qf, N = N_mpc)
