@@ -1,11 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import ctrl
+import time as TM
 
 if __name__ == '__main__':
     #generate random path
     v = 0.4
-    w = 0.2
+    w = 0.25
     dt = 0.1
     time = 30
     n = int(time/dt)
@@ -20,9 +21,9 @@ if __name__ == '__main__':
         yaw[i] = car_state.X[2]
         car_state.forward()
         if i == 100:
-            car_state.update_vw(0.4, -0.15)
+            car_state.update_vw(0.4, 0.5)
         if i == 200:
-            car_state.update_vw(0.4, 0.25)
+            car_state.update_vw(0.4, -0.5)
 
     # plt.plot(x, y)
     # plt.show()
@@ -76,9 +77,9 @@ if __name__ == '__main__':
 
     #test MPC
     vehicle = ctrl.CarModel()
-    Q = np.matrix(np.eye(vehicle.n_x) * 3)
-    R = np.matrix(np.eye(vehicle.n_u) * 2)
-    Qf = np.matrix(np.eye(vehicle.n_x) * 3)
+    Q = np.matrix(np.eye(vehicle.n_x) * 4)
+    R = np.matrix(np.eye(vehicle.n_u) * 1)
+    Qf = np.matrix(np.eye(vehicle.n_x) * 4)
     A_hat, B_hat = vehicle.stateSpaceModel(vehicle.state, vehicle.u)
     N_mpc = 10
     mpc = ctrl.MPCCtrl(A_hat, B_hat, Q, R, Qf, N = N_mpc)
@@ -93,6 +94,8 @@ if __name__ == '__main__':
     state_ref = np.zeros((N_mpc, vehicle.n_x))
     state_ref_0 = np.zeros(vehicle.n_x)
     
+    time_1 = 0
+    time_2 = 0
     for i in range(n):
         x_mpc[i] = vehicle.x
         y_mpc[i] = vehicle.y
@@ -101,6 +104,8 @@ if __name__ == '__main__':
         # print('state: ', vehicle.state)
         # print('u: ', vehicle.u)
 
+        time_1 = TM.time()
+
         A_hat, B_hat = vehicle.stateSpaceModel(vehicle.state, vehicle.u)
 
         #debug
@@ -108,10 +113,13 @@ if __name__ == '__main__':
 
         idx = mpc.calc_track_idx(vehicle.x, vehicle.y, track_ref)
         state_error0 = vehicle.state - track_ref[idx].reshape(-1, 1)
-        state_ref = mpc.calc_ref_trajectory(track_ref, idx, N_mpc)
+        state_ref = mpc.calc_ref_trajectory(track_ref, idx, N_mpc).reshape(-1,1) - np.kron(np.ones((N_mpc, 1)), track_ref[idx].reshape(-1, 1))
         
         u = mpc.solve(state_error0,state_ref,A_hat,B_hat,Q,R,Qf,N_mpc)[0:vehicle.n_u]
-        u[0] = u[0] + 0.4
+        # u[0] = u[0] + 0.3
+
+        time_2 = TM.time()
+        print('time: ', time_2 - time_1)
 
         #debug
         # print('i:', i,'u: ', u[0], u[1])

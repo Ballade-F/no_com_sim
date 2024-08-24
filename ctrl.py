@@ -162,13 +162,21 @@ class MPCCtrl():
         self.nx = B_hat.shape[0]
         self.nu = B_hat.shape[1]
 
+        self.idx_last = 0
+        self.idx_delta_max = 10
+
     def calc_track_idx(self,x,y,track):
         dx = track[:,0] - x
         dy = track[:,1] - y
         d = np.sqrt(dx**2 + dy**2)
         idx = np.argmin(d)+1
+        if idx < self.idx_last:
+            idx = self.idx_last + 1
+        elif idx - self.idx_last > self.idx_delta_max:
+            idx = self.idx_last + 1
         if idx >= len(track):
             idx = len(track) - 1
+        self.idx_last = idx
         return idx
     
     def calc_ref_trajectory(self,track,track_idx,N):
@@ -213,18 +221,16 @@ class MPCCtrl():
         R_bar = np.matrix(np.kron(np.eye(self.N), R))
 
 #
-        # error_state = X - REF = X + error_state0 - state_ref
-        # REF shape = (N*nx, 1), A_ba shape = (N*nx, nx), error_state0 shape = (nx, 1)
-        REF = state_ref.reshape(-1, 1) - np.matrix(np.kron(np.ones((self.N, 1)), error_state0.reshape(-1, 1)))
-        E = A_ba * error_state0.reshape(-1, 1) - REF
 
         #J = x.T * Q_bar * x + u.T * R_bar * u
         #J = (A_ba*x_k + B_ba*u - REF).T * Q_bar * (A_ba*x_k + B_ba*u - REF) + u.T * R_bar * u
         #J = (E+B_ba*u).T * Q_bar * (E+B_ba*u) + u.T * R_bar * u
         #J = U.T * (B_ba.T * Q_bar * B_ba + R_bar) * U + 2 * E.T * Q_bar * B_ba * U + E.T * Q_bar * E
         # min 0.5x^T P x + q^T x
-        P = 2 * (B_ba.T * Q_bar * B_ba + R_bar) #shape = (N*nu, N*nu)
-        q = 2 * E.T * Q_bar * B_ba #shape = (1, N*nu)
+        E = A_ba * error_state0.reshape(-1, 1) - state_ref.reshape(-1, 1)
+
+        P = 2 * (B_ba.T * Q_bar * B_ba + R_bar)
+        q = 2 * B_ba.T * Q_bar * E
 #
         #debug
         # E = A_ba.T * Q_bar * B_ba

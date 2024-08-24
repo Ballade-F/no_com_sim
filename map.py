@@ -1,4 +1,5 @@
 from copy import deepcopy
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -8,6 +9,7 @@ ob_points_min = 5
 ob_points_max = 15
 
 
+# Store coordinates in a normalized manner
 class Map():
     def __init__(self, n_obstacles:int, n_starts:int, n_tasks:int, n_x:int, n_y:int, resolution_x:float, resolution_y:float):
         self.n_obstacles = n_obstacles
@@ -17,6 +19,8 @@ class Map():
         self.n_y = n_y
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
+        self.x_max = n_x*resolution_x
+        self.y_max = n_y*resolution_y
         self.obstacles = []
         self.starts = []
         self.tasks = []
@@ -67,11 +71,30 @@ class Map():
                     x_end = int(active_edge_table[i + 1][2]+active_edge_table[i+1][3]*(y-active_edge_table[i+1][0]))
                     self.grid_map[x_start:x_end+1, y-1:y+1] = 1
 
+    # input: true coordinates
+    def isObstacle(self, x:float, y:float):
+        x = np.maximum(x, 0)
+        x = np.minimum(x, self.x_max)
+        y = np.maximum(y, 0)
+        y = np.minimum(y, self.y_max)
+        x_index = np.floor(x/self.resolution_x).astype(int)
+        y_index = np.floor(y/self.resolution_y).astype(int)
+        return self.grid_map[x_index, y_index] == 1
+    
+    # input: normalized coordinates
+    def _isObstacle(self, x, y):
+        x = np.maximum(x, 0)
+        x = np.minimum(x, 1)
+        y = np.maximum(y, 0)
+        y = np.minimum(y, 1)
+        x_index = np.floor(x*self.n_x).astype(int)
+        y_index = np.floor(y*self.n_y).astype(int)
+        return self.grid_map[x_index, y_index] == 1
 
-            
 
 
 
+    # input: true coordinates
     def setObstacles(self, obstacles: list, start: list, tasks: list):
         for ob_points in obstacles:
             ob_points[:, 0] = ob_points[:, 0] / (self.n_x*self.resolution_x)
@@ -107,13 +130,19 @@ class Map():
             
             self.obstacles.append(ob_points)
 
-            # #debug
-            # print(ob_points)
-
-        self.starts = rng.uniform(0, 1, (self.n_starts, 2))
-        self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
-
         self._obstacle2grid()
+
+        while(True):
+            self.starts = rng.uniform(0, 1, (self.n_starts, 2))
+            self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
+            if True not in self._isObstacle(self.starts[:, 0], self.starts[:, 1])  and True not in self._isObstacle(self.tasks[:, 0], self.tasks[:, 1]) :
+                break
+
+    # return normalized coordinates of obstacles, starts and tasks in -1 to 1
+    def dataForDL(self):
+        pass
+    # TODO: implement this function
+
 
     def plot(self):
         fig, ax = plt.subplots()
