@@ -21,9 +21,9 @@ if __name__ == '__main__':
         yaw[i] = car_state.X[2]
         car_state.forward()
         if i == 100:
-            car_state.update_vw(0.4, 0.5)
+            car_state.update_vw(0.4, -0.15)
         if i == 200:
-            car_state.update_vw(0.4, -0.5)
+            car_state.update_vw(0.4, 0.15)
 
     # plt.plot(x, y)
     # plt.show()
@@ -69,11 +69,11 @@ if __name__ == '__main__':
         if i == 200:
             car_state_noise.update_vw(0.4, 0.25)
     
-    # plt.plot(x_noise, y_noise, label='noisy')
-    # plt.plot(x_ekf, y_ekf, label='ekf')
-    # plt.plot(x_observation, y_observation, label='observation')
-    # plt.legend()
-    # plt.show()
+    plt.plot(x_noise, y_noise, label='noisy')
+    plt.plot(x_ekf, y_ekf, label='ekf')
+    plt.plot(x_observation, y_observation, label='observation')
+    plt.legend()
+    plt.show()
 
     #test MPC
     vehicle = ctrl.CarModel()
