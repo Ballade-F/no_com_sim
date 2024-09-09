@@ -4,9 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #obstacle generator parameters
-ob_r_factor = 0.7
+ob_r_factor = 1.5
 ob_points_min = 5
-ob_points_max = 15
+ob_points_max = 10
 
 
 # Store coordinates in a normalized manner
@@ -24,6 +24,8 @@ class Map():
         self.obstacles = []
         self.starts = []
         self.tasks = []
+        self.starts_grid = []
+        self.tasks_grid = []
         self.grid_map = np.zeros((n_x, n_y))
 
     def _obstacle2grid(self):
@@ -90,6 +92,8 @@ class Map():
         x_index = np.floor(x*self.n_x).astype(int)
         y_index = np.floor(y*self.n_y).astype(int)
         return self.grid_map[x_index, y_index] == 1
+    
+    
 
 
 
@@ -108,6 +112,13 @@ class Map():
         tasks[:, 0] = tasks[:, 0] / (self.n_x*self.resolution_x)
         tasks[:, 1] = tasks[:, 1] / (self.n_y*self.resolution_y)
         self.tasks = tasks
+
+        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
+        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
+        self.starts_grid[:,0] = np.floor(start[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,1] = np.floor(start[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,0] = np.floor(tasks[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,1] = np.floor(tasks[:,1]*self.n_y).astype(int)
 
         self._obstacle2grid()
 
@@ -138,11 +149,22 @@ class Map():
             if True not in self._isObstacle(self.starts[:, 0], self.starts[:, 1])  and True not in self._isObstacle(self.tasks[:, 0], self.tasks[:, 1]) :
                 break
 
+        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
+        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
+        self.starts_grid[:,0] = np.floor(self.starts[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,1] = np.floor(self.starts[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,0] = np.floor(self.tasks[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,1] = np.floor(self.tasks[:,1]*self.n_y).astype(int)
+
     # return normalized coordinates of obstacles, starts and tasks in -1 to 1
     def dataForDL(self):
-        pass
-    # TODO: implement this function
-
+        obstacles = []
+        for ob_points in self.obstacles:
+            ob_points = (ob_points - 0.5)*2
+            obstacles.append(ob_points)
+        starts = (self.starts - 0.5)*2
+        tasks = (self.tasks - 0.5)*2
+        return obstacles, starts, tasks
 
     def plot(self):
         fig, ax = plt.subplots()
@@ -150,8 +172,14 @@ class Map():
         ax.set_ylim(0, 1)
         for ob_points in self.obstacles:
             ax.fill(ob_points[:, 0], ob_points[:, 1], 'r')
-        ax.scatter(self.starts[:, 0], self.starts[:, 1], c='b')
-        ax.scatter(self.tasks[:, 0], self.tasks[:, 1], c='r')
+        for i in range(self.n_starts):
+            ax.scatter(self.starts[i, 0], self.starts[i, 1], c='b')
+            plt.text(self.starts[i, 0], self.starts[i, 1], str(i))
+        for i in range(self.n_tasks):
+            ax.scatter(self.tasks[i, 0], self.tasks[i, 1], c='r')
+            plt.text(self.tasks[i, 0], self.tasks[i, 1], str(i))
+        # ax.scatter(self.starts[:, 0], self.starts[:, 1], c='b',text=i) 
+        # ax.scatter(self.tasks[:, 0], self.tasks[:, 1], c='r',text=i) 
         plt.show()
 
     def plotGrid(self):

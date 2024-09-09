@@ -70,6 +70,7 @@ class AStarPlanner():
                     neighbors.append((x, y, distance))
         return neighbors
 
+    #return the path from start to goal and the distance
     def plan(self, start:tuple, goal:tuple):
         # the = in python equal to the reference in c++
         start_node = self.grid_nodes[start[0]][start[1]]
@@ -78,27 +79,35 @@ class AStarPlanner():
         start_node.h = self._heuristic(start_node, goal_node)
         start_node.f = start_node.g + start_node.h
         open_list = []
+        # heapq is a priority queue
+        # push the start node into the open list
         heapq.heappush(open_list,  start_node)
         start_node.set_flag = 1
 
         while len(open_list) > 0:
+            # pop the node with the smallest f value, which means put it into the close list
             current_node = open_list.pop(0)
+            # if the node is in the close list, skip
             if current_node.set_flag == 2:
                 continue
             current_node.set_flag = 2
+            # if the current node is the goal node, return the path and distance
             if current_node == goal_node:
                 path = []
                 while current_node is not None:
                     path.append((current_node.x, current_node.y))
                     current_node = current_node.parent
-                return path[::-1]
+                return path[::-1], goal_node.g
+            # get the neighbors of the current node
             neighbors = self._get_neighbors(current_node)
             for neighbor in neighbors:
                 x, y, distance = neighbor
                 neighbor_node = self.grid_nodes[x][y]
+                # heappush cannot cover the same node, so we need to check if the neighbor node is in the close list
                 if neighbor_node.set_flag == 2:
                     continue
                 tentative_g = current_node.g + distance
+                # if the neighbor node is not in the open list, put it into the open list
                 if neighbor_node.set_flag == 0:
                     neighbor_node.g = tentative_g
                     neighbor_node.h = self._heuristic(neighbor_node, goal_node)
@@ -106,6 +115,7 @@ class AStarPlanner():
                     neighbor_node.parent = current_node
                     heapq.heappush(open_list, neighbor_node)
                     neighbor_node.set_flag = 1
+                # if the neighbor node is in the open list, update the g value
                 elif tentative_g < neighbor_node.g:
                     neighbor_node.g = tentative_g
                     neighbor_node.f = neighbor_node.g + neighbor_node.h
@@ -121,7 +131,8 @@ if __name__ == '__main__':
     grid_map[20:40, 20:40] = 1
     grid_map[60:80, 60:80] = 1
     astar_planner = AStarPlanner(grid_map)
-    path = astar_planner.plan((10, 10), (90, 90))
+    path, dis = astar_planner.plan((10, 10), (89, 90))
+    print(dis)
     # print(path)
     plt.imshow(grid_map)
     plt.plot([x[0] for x in path], [x[1] for x in path], 'r')
