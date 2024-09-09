@@ -117,6 +117,7 @@ class AStarPlanner():
                     neighbor_node.set_flag = 1
                 # if the neighbor node is in the open list, update the g value
                 elif tentative_g < neighbor_node.g:
+                    
                     neighbor_node.g = tentative_g
                     neighbor_node.f = neighbor_node.g + neighbor_node.h
                     neighbor_node.parent = current_node

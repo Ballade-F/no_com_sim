@@ -10,7 +10,7 @@ if __name__ == '__main__':
     n_starts = 4
     n_tasks = 4
     map = mp.Map(10, n_starts, n_tasks, 100, 100, 1, 1)
-    map.setObstacleRandn(2025)
+    map.setObstacleRandn(2026)
     # map.plot()
     # map.plotGrid()
     astar_planner = path_planner.AStarPlanner(map.grid_map)
@@ -37,7 +37,8 @@ if __name__ == '__main__':
         path_allot.append(path_matrix[i*n_tasks+col_ind[i]])
 
     #ctrl
-    
+    # mpc ctrl
+
 
     #plot path
     fig, ax = plt.subplots()
