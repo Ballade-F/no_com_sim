@@ -121,7 +121,8 @@ class AStarPlanner():
                     neighbor_node.g = tentative_g
                     neighbor_node.f = neighbor_node.g + neighbor_node.h
                     neighbor_node.parent = current_node
-                    heapq.heappush(open_list, neighbor_node)
+                    # heapq.heappush(open_list, neighbor_node)
+                    heapq.heapify(open_list)
                 
 
         return None
@@ -132,7 +133,7 @@ if __name__ == '__main__':
     grid_map[20:40, 20:40] = 1
     grid_map[60:80, 60:80] = 1
     astar_planner = AStarPlanner(grid_map)
-    path, dis = astar_planner.plan((10, 10), (89, 90))
+    path, dis = astar_planner.plan((10, 10), (90, 90))
     print(dis)
     # print(path)
     plt.imshow(grid_map)
