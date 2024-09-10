@@ -24,6 +24,7 @@ class Map():
         self.obstacles = []
         self.starts = []
         self.tasks = []
+        self.tasks_finish = []
         self.starts_grid = []
         self.tasks_grid = []
         self.grid_map = np.zeros((n_x, n_y))
@@ -113,6 +114,8 @@ class Map():
         tasks[:, 1] = tasks[:, 1] / (self.n_y*self.resolution_y)
         self.tasks = tasks
 
+        self.tasks_finish = [False for _ in range(self.n_tasks)]
+
         self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
         self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
         self.starts_grid[:,0] = np.floor(start[:,0]*self.n_x).astype(int)
@@ -125,7 +128,10 @@ class Map():
     def setObstacleRandn(self, seed:int):
         rng = np.random.default_rng(seed)
         center_points = rng.uniform(0, 1, (self.n_obstacles, 2))
-        ob_r_max = ob_r_factor/self.n_obstacles
+        if self.n_obstacles == 0 :
+            ob_r_max = 1
+        else:
+            ob_r_max = ob_r_factor/self.n_obstacles
         for i in range(self.n_obstacles):
             n_points = rng.integers(ob_points_min, ob_points_max)
             ob_angles = rng.uniform(0, 2*np.pi, n_points)
@@ -148,6 +154,8 @@ class Map():
             self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
             if True not in self._isObstacle(self.starts[:, 0], self.starts[:, 1])  and True not in self._isObstacle(self.tasks[:, 0], self.tasks[:, 1]) :
                 break
+
+        self.tasks_finish = [False for _ in range(self.n_tasks)]
 
         self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
         self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)

@@ -28,7 +28,9 @@ class astar_node():
         self.set_flag = 0
 
 class AStarPlanner():
-    def __init__(self, grid_map:np.ndarray):
+    def __init__(self, grid_map:np.ndarray, resolution_x:float, resolution_y:float):
+        self.resolution_x = resolution_x
+        self.resolution_y = resolution_y
         self.grid_map = grid_map
         self.n_x = grid_map.shape[0]
         self.n_y = grid_map.shape[1]
@@ -43,7 +45,8 @@ class AStarPlanner():
                 self.grid_nodes[i][j].reset()
 
     def _get_distance(self, node1:astar_node, node2:astar_node):
-        return np.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2)
+        return np.sqrt(((node1.x - node2.x)*self.resolution_x) ** 2 + ((node1.y - node2.y)*self.resolution_y) ** 2)
+        # return np.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2)
 
     def _heuristic(self, node:astar_node, goal:astar_node):
         return self._get_distance(node, goal)
@@ -64,6 +67,7 @@ class AStarPlanner():
                 x = node.x + i
                 y = node.y + j
                 if self._is_valid_node(x, y):
+                    #TODO: consider resolution
                     distance = 1
                     if i != 0 and j != 0:
                         distance = np.sqrt(2)

@@ -1,3 +1,4 @@
+import csv
 import numpy as np
 import matplotlib.pyplot as plt
 import map as mp
@@ -9,11 +10,11 @@ import time as TM
 if __name__ == '__main__':
     n_starts = 4
     n_tasks = 4
-    map = mp.Map(10, n_starts, n_tasks, 100, 100, 1, 1)
+    map = mp.Map(0, n_starts, n_tasks, 100, 100, 1, 1)
     map.setObstacleRandn(2026)
     # map.plot()
     # map.plotGrid()
-    astar_planner = path_planner.AStarPlanner(map.grid_map)
+    astar_planner = path_planner.AStarPlanner(map.grid_map, map.resolution_x, map.resolution_y)
     starts = map.starts_grid
     tasks = map.tasks_grid
 
@@ -23,8 +24,10 @@ if __name__ == '__main__':
     for i in range(n_starts):
         for j in range(n_tasks):
             astar_planner.resetNodes()
+            #path is index of grid nodes
             path, dist_matrix[i, j] = astar_planner.plan(starts[i], tasks[j])
-            path_matrix.append(path)
+            path_true = [((p[0] + 0.5)*map.resolution_x, (p[1]+0.5)*map.resolution_y) for p in path]
+            path_matrix.append(path_true)
 
     print(dist_matrix)
 
@@ -35,9 +38,26 @@ if __name__ == '__main__':
     path_allot = []
     for i in range(n_starts):
         path_allot.append(path_matrix[i*n_tasks+col_ind[i]])
+    targets = col_ind
 
-    #ctrl
-    # mpc ctrl
+    #write path allot to csv
+    n = [len(path) for path in path_allot]
+    n_max = max(n)
+    with open('path_allot.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Time','Type','ID','x', 'y','Target/finish'])
+        for i in range(n_max):
+            for j in range(n_starts):
+                if i < n[j]:
+                    writer.writerow([i, 'robot', j, path_allot[j][i][0], path_allot[j][i][1], targets[j]])
+                else:
+                    writer.writerow([i, 'robot', j, path_allot[j][-1][0], path_allot[j][-1][1], targets[j]])
+            for j in range(n_tasks):
+                writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], map.tasks_finish[j]])
+     
+
+    
+ 
 
 
     #plot path
@@ -46,7 +66,8 @@ if __name__ == '__main__':
     ax.set_ylim(0, map.n_y)
     img = 255-map.grid_map*255
     img = img.transpose()
-    ax.imshow(img, cmap='gray')
+    ax.imshow(img, cmap='gray',vmin=0, vmax=255)
+
     for ob_points in map.obstacles:
         ax.fill(ob_points[:, 0]*map.n_x, ob_points[:, 1]*map.n_y, 'r')
     # for path in path_matrix:
