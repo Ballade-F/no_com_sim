@@ -1,13 +1,16 @@
 from copy import deepcopy
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 
 #obstacle generator parameters
-ob_r_factor = 0.7
+ob_r_factor = 1.5
 ob_points_min = 5
-ob_points_max = 15
+ob_points_max = 10
 
 
+
+# Store coordinates in a normalized manner
 class Map():
     def __init__(self, n_obstacles:int, n_starts:int, n_tasks:int, n_x:int, n_y:int, resolution_x:float, resolution_y:float):
         self.n_obstacles = n_obstacles
@@ -17,9 +20,14 @@ class Map():
         self.n_y = n_y
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
+        self.x_max = n_x*resolution_x
+        self.y_max = n_y*resolution_y
         self.obstacles = []
         self.starts = []
         self.tasks = []
+        self.tasks_finish = []
+        self.starts_grid = []
+        self.tasks_grid = []
         self.grid_map = np.zeros((n_x, n_y))
 
     def _obstacle2grid(self):
@@ -67,11 +75,28 @@ class Map():
                     x_end = int(active_edge_table[i + 1][2]+active_edge_table[i+1][3]*(y-active_edge_table[i+1][0]))
                     self.grid_map[x_start:x_end+1, y-1:y+1] = 1
 
+    # input: true coordinates
+    def isObstacle(self, x:float, y:float):
+        x = np.maximum(x, 0)
+        x = np.minimum(x, self.x_max)
+        y = np.maximum(y, 0)
+        y = np.minimum(y, self.y_max)
+        x_index = np.floor(x/self.resolution_x).astype(int)
+        y_index = np.floor(y/self.resolution_y).astype(int)
+        return self.grid_map[x_index, y_index] == 1
+    
+    # input: normalized coordinates
+    def _isObstacle(self, x, y):
+        x = np.maximum(x, 0)
+        x = np.minimum(x, 1)
+        y = np.maximum(y, 0)
+        y = np.minimum(y, 1)
+        x_index = np.floor(x*self.n_x).astype(int)
+        y_index = np.floor(y*self.n_y).astype(int)
+        return self.grid_map[x_index, y_index] == 1
+    
 
-            
-
-
-
+    # input: true coordinates
     def setObstacles(self, obstacles: list, start: list, tasks: list):
         for ob_points in obstacles:
             ob_points[:, 0] = ob_points[:, 0] / (self.n_x*self.resolution_x)
@@ -86,12 +111,24 @@ class Map():
         tasks[:, 1] = tasks[:, 1] / (self.n_y*self.resolution_y)
         self.tasks = tasks
 
+        self.tasks_finish = [False for _ in range(self.n_tasks)]
+
+        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
+        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
+        self.starts_grid[:,0] = np.floor(start[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,1] = np.floor(start[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,0] = np.floor(tasks[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,1] = np.floor(tasks[:,1]*self.n_y).astype(int)
+
         self._obstacle2grid()
 
     def setObstacleRandn(self, seed:int):
         rng = np.random.default_rng(seed)
         center_points = rng.uniform(0, 1, (self.n_obstacles, 2))
-        ob_r_max = ob_r_factor/self.n_obstacles
+        if self.n_obstacles == 0 :
+            ob_r_max = 1
+        else:
+            ob_r_max = ob_r_factor/self.n_obstacles
         for i in range(self.n_obstacles):
             n_points = rng.integers(ob_points_min, ob_points_max)
             ob_angles = rng.uniform(0, 2*np.pi, n_points)
@@ -107,13 +144,46 @@ class Map():
             
             self.obstacles.append(ob_points)
 
-            # #debug
-            # print(ob_points)
-
-        self.starts = rng.uniform(0, 1, (self.n_starts, 2))
-        self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
-
         self._obstacle2grid()
+
+        while(True):
+            self.starts = rng.uniform(0, 1, (self.n_starts, 2))
+            self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
+            if True not in self._isObstacle(self.starts[:, 0], self.starts[:, 1])  and True not in self._isObstacle(self.tasks[:, 0], self.tasks[:, 1]) :
+                break
+
+        self.tasks_finish = [False for _ in range(self.n_tasks)]
+
+        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
+        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
+        self.starts_grid[:,0] = np.floor(self.starts[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,1] = np.floor(self.starts[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,0] = np.floor(self.tasks[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,1] = np.floor(self.tasks[:,1]*self.n_y).astype(int)
+
+    # input: true coordinates & id of task
+    # if point and task are in the same grid, return True
+    def checkTaskFinish(self, x:float, y:float, task_id:int):
+        x = np.maximum(x, 0)
+        x = np.minimum(x, self.x_max)
+        y = np.maximum(y, 0)
+        y = np.minimum(y, self.y_max)
+        x_index = np.floor(x/self.resolution_x).astype(int)
+        y_index = np.floor(y/self.resolution_y).astype(int)
+        if self.tasks_grid[task_id][0] == x_index and self.tasks_grid[task_id][1] == y_index:
+            self.tasks_finish[task_id] = True
+            return True
+        return False
+
+    # return normalized coordinates of obstacles, starts and tasks in -1 to 1
+    def dataForDL(self):
+        obstacles = []
+        for ob_points in self.obstacles:
+            ob_points = (ob_points - 0.5)*2
+            obstacles.append(ob_points)
+        starts = (self.starts - 0.5)*2
+        tasks = (self.tasks - 0.5)*2
+        return obstacles, starts, tasks
 
     def plot(self):
         fig, ax = plt.subplots()
@@ -121,8 +191,14 @@ class Map():
         ax.set_ylim(0, 1)
         for ob_points in self.obstacles:
             ax.fill(ob_points[:, 0], ob_points[:, 1], 'r')
-        ax.scatter(self.starts[:, 0], self.starts[:, 1], c='b')
-        ax.scatter(self.tasks[:, 0], self.tasks[:, 1], c='r')
+        for i in range(self.n_starts):
+            ax.scatter(self.starts[i, 0], self.starts[i, 1], c='b')
+            plt.text(self.starts[i, 0], self.starts[i, 1], str(i))
+        for i in range(self.n_tasks):
+            ax.scatter(self.tasks[i, 0], self.tasks[i, 1], c='r')
+            plt.text(self.tasks[i, 0], self.tasks[i, 1], str(i))
+        # ax.scatter(self.starts[:, 0], self.starts[:, 1], c='b',text=i) 
+        # ax.scatter(self.tasks[:, 0], self.tasks[:, 1], c='r',text=i) 
         plt.show()
 
     def plotGrid(self):

@@ -118,8 +118,9 @@ class CarModel():
 
         self.n_x = 3
         self.n_u = 2
-        #asmatrix : Shallow copy
+        #asmatrix : Shallow copy, shape = (3, 1)
         self.state = np.asmatrix([self.x, self.y, self.yaw]).T
+        self.u = np.asmatrix([self.v, self.w]).T
 
     #v at t, w at t, update x, y, yaw at t+1
     def update(self,v:float, w:float):
@@ -128,14 +129,16 @@ class CarModel():
         self.yaw = self.yaw + w*self.dt
         self.v = v
         self.w = w
+        self.state = np.asmatrix([self.x, self.y, self.yaw]).T
+        self.u = np.asmatrix([self.v, self.w]).T
         
     # return linearized and discretized state matrix A and B at state_ref
     def stateSpaceModel(self, state_ref:np.array, u_ref:np.array):
-        x_ref = state_ref[0]
-        y_ref = state_ref[1]
-        yaw_ref = state_ref[2]
-        v_ref = u_ref[0]
-        w_ref = u_ref[1]
+        # x_ref = state_ref[0]
+        # y_ref = state_ref[1]
+        yaw_ref = state_ref[2,0]
+        v_ref = u_ref[0,0]
+        # w_ref = u_ref[1]
 
         A_hat = np.asmatrix([[1, 0, -v_ref*np.sin(yaw_ref)*self.dt],
                          [0, 1, v_ref*np.cos(yaw_ref)*self.dt],
@@ -149,7 +152,7 @@ class CarModel():
 
 #x: [x, y, yaw], u: [v, w]
 class MPCCtrl():
-    def __init__(self, A_hat, B_hat, Q, R, Qf, N = 10):
+    def __init__(self, A_hat, B_hat, Q:np.matrix, R:np.matrix, Qf:np.matrix, N = 10):
         self.A_hat = A_hat
         self.B_hat = B_hat
         self.Q = Q
@@ -158,9 +161,37 @@ class MPCCtrl():
         self.N = N    # prediction horizon
         self.nx = B_hat.shape[0]
         self.nu = B_hat.shape[1]
+
+        self.idx_last = 0
+        self.idx_delta_max = 10
+
+    def calc_track_idx(self,x,y,track):
+        dx = track[:,0] - x
+        dy = track[:,1] - y
+        d = np.sqrt(dx**2 + dy**2)
+        idx = np.argmin(d)+1
+        if idx < self.idx_last:
+            idx = self.idx_last + 1
+        elif idx - self.idx_last > self.idx_delta_max:
+            idx = self.idx_last + 1
+        if idx >= len(track):
+            idx = len(track) - 1
+        self.idx_last = idx
+        return idx
+    
+    def calc_ref_trajectory(self,track,track_idx,N):
+        track_len = len(track)
+        ref_trajectory = np.zeros((N,self.nx))
+        for i in range(N):
+            idx = track_idx + i + 1
+            if idx >= track_len:
+                idx = track_len-1
+            ref_trajectory[i,:] = track[idx,:]
+        return ref_trajectory
         
     # optimize state from k+1 to k+N, u from k to k+N-1
-    def solve(self, error_state0, A_hat, B_hat, Q, R, Qf, N = 10):
+    # error_state0 : state_k - state_ref_k, state_ref = [state_ref_k+1, ..., state_ref_k+N]
+    def solve(self, error_state0, state_ref, A_hat, B_hat, Q:np.matrix, R:np.matrix, Qf:np.matrix, N = 10):
         self.N = N
         self.nx = B_hat.shape[0]
         self.nu = B_hat.shape[1]
@@ -172,26 +203,40 @@ class MPCCtrl():
 
         A_power = [np.linalg.matrix_power(A_hat, i) for i in range(N+1)]
 
-        # X = Mx_k + CU
-        M = np.zeros((self.N*self.nx, self.nx))
-        C = np.zeros((self.N*self.nx, self.N*self.nu))
+        # X = A_ba*x_k + B_ba*U
+        A_ba = np.matrix(np.zeros((self.N*self.nx, self.nx)))
+        B_ba = np.matrix(np.zeros((self.N*self.nx, self.N*self.nu)))
 
         for i in range(N):
-            M[i*self.nx:(i+1)*self.nx, :] = A_power[i+1]
-            for j in range(i):
-                C[i*self.nx:(i+1)*self.nx, j*self.nu:(j+1)*self.nu] = A_power[i-j]*B_hat
+            A_ba[i*self.nx:(i+1)*self.nx, :] = A_power[i+1]
+            for j in range(i+1):
+                B_ba[i*self.nx:(i+1)*self.nx, j*self.nu:(j+1)*self.nu] = A_power[i-j]*B_hat
 
-        Q_bar = np.kron(np.eye(self.N + 1), Q)
-        Q_bar[self.N * self.nx : (1 + self.N) * self.nx, self.N * self.nx : (1 + self.N) * self.nx:] = Qf
-        R_bar = np.kron(np.eye(self.N), R)
+        #debug
+        # print('A_ba: \n', A_ba)
+        # print('B_ba: \n', B_ba)
+
+        Q_bar = np.matrix(np.kron(np.eye(self.N), Q))
+        Q_bar[(self.N-1) * self.nx : (self.N) * self.nx, (self.N-1) * self.nx : (self.N) * self.nx:] = Qf
+        R_bar = np.matrix(np.kron(np.eye(self.N), R))
+
+#
 
         #J = x.T * Q_bar * x + u.T * R_bar * u
-        #J = (M*x_k + C*u).T * Q_bar * (M*x_k + C*u) + u.T * R_bar * u
-        #J = u.T * (C.T * Q_bar * C + R_bar) * u + 2 * x_k.T * M.T * Q_bar * C * u + (x_k.T * M.T * Q_bar * M * x_k)
-        E = M.T * Q_bar * C
+        #J = (A_ba*x_k + B_ba*u - REF).T * Q_bar * (A_ba*x_k + B_ba*u - REF) + u.T * R_bar * u
+        #J = (E+B_ba*u).T * Q_bar * (E+B_ba*u) + u.T * R_bar * u
+        #J = U.T * (B_ba.T * Q_bar * B_ba + R_bar) * U + 2 * E.T * Q_bar * B_ba * U + E.T * Q_bar * E
         # min 0.5x^T P x + q^T x
-        P = 2 * (C.T * Q_bar * C + R_bar)
-        q = 2 * E * error_state0
+        E = A_ba * error_state0.reshape(-1, 1) - state_ref.reshape(-1, 1)
+
+        P = 2 * (B_ba.T * Q_bar * B_ba + R_bar)
+        q = 2 * B_ba.T * Q_bar * E
+#
+        #debug
+        # E = A_ba.T * Q_bar * B_ba
+        # P = 2 * (B_ba.T * Q_bar * B_ba + R_bar)
+        # q = 2 * E.T * error_state0.reshape(-1, 1)
+
 
         #solve u
         # Gx <= h
@@ -221,3 +266,41 @@ class MPCCtrl():
         res = solve_qp(P, q, G, h, A, b, solver="osqp")
 
         return res
+    
+if __name__ == "__main__":
+    #test state
+    state = State(1, 2, 0, 1, 0, 0.1, 0.1, 0.1, 0.1, 0.1)
+    state.forward()
+    print(state.X)
+    state.predict()
+    print(state.X)
+    print(state.observation())
+    state.update_vw(2, 1)
+    print(state.X)
+
+    #test EKF
+    state = State(1, 2, 0, 1, 0, 0.1, 0.1, 0.1, 0.1, 0.1)
+    ekf = ExtendKalman(state)
+    ekf.predict()
+    print(ekf.state.X)
+    ekf.update(np.array([1.1, 2.1]))
+    print(ekf.state.X)
+
+    #test car model
+    car = CarModel(1, 2, 0, 1, 0, 0.1)
+    car.update(2, 1)
+    print(car.x, car.y, car.yaw, car.v, car.w)
+    A_hat, B_hat = car.stateSpaceModel(np.array([1, 2, 0]), np.array([1, 0]))
+    print(A_hat, B_hat)
+
+    #test MPC
+    Q = np.diag([1, 1, 1])
+    R = np.diag([1, 1])
+    Qf = np.diag([1, 1, 1])
+    N = 10
+    mpc = MPCCtrl(A_hat, B_hat, Q, R, Qf)
+    ref = np.array([1, 2, 0]).reshape(-1, 1)
+    ref_n = np.kron(np.ones((N, 1)), ref)
+    res = mpc.solve(np.array([0, 0, 0]), ref_n, A_hat, B_hat, Q, R, Qf, N)
+    print(res)
+    
