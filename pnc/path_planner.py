@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import map
+import utils.map as map
 import heapq
 
 class astar_node():

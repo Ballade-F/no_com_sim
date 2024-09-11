@@ -1,9 +1,9 @@
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-import map as mp
-import ctrl
-import path_planner
+import utils.map as mp
+import pnc.ctrl as ctrl
+import pnc.path_planner as path_planner
 from task_allocation import hungarian
 import time as TM
 

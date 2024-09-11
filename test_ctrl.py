@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import ctrl
+import pnc.ctrl as ctrl
 import time as TM
 
 if __name__ == '__main__':
