@@ -9,6 +9,7 @@ ob_points_min = 5
 ob_points_max = 10
 
 
+
 # Store coordinates in a normalized manner
 class Map():
     def __init__(self, n_obstacles:int, n_starts:int, n_tasks:int, n_x:int, n_y:int, resolution_x:float, resolution_y:float):
@@ -94,10 +95,6 @@ class Map():
         y_index = np.floor(y*self.n_y).astype(int)
         return self.grid_map[x_index, y_index] == 1
     
-    
-
-
-
 
     # input: true coordinates
     def setObstacles(self, obstacles: list, start: list, tasks: list):
@@ -163,6 +160,20 @@ class Map():
         self.starts_grid[:,1] = np.floor(self.starts[:,1]*self.n_y).astype(int)
         self.tasks_grid[:,0] = np.floor(self.tasks[:,0]*self.n_x).astype(int)
         self.tasks_grid[:,1] = np.floor(self.tasks[:,1]*self.n_y).astype(int)
+
+    # input: true coordinates & id of task
+    # if point and task are in the same grid, return True
+    def checkTaskFinish(self, x:float, y:float, task_id:int):
+        x = np.maximum(x, 0)
+        x = np.minimum(x, self.x_max)
+        y = np.maximum(y, 0)
+        y = np.minimum(y, self.y_max)
+        x_index = np.floor(x/self.resolution_x).astype(int)
+        y_index = np.floor(y/self.resolution_y).astype(int)
+        if self.tasks_grid[task_id][0] == x_index and self.tasks_grid[task_id][1] == y_index:
+            self.tasks_finish[task_id] = True
+            return True
+        return False
 
     # return normalized coordinates of obstacles, starts and tasks in -1 to 1
     def dataForDL(self):

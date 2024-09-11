@@ -43,17 +43,22 @@ if __name__ == '__main__':
     #write path allot to csv
     n = [len(path) for path in path_allot]
     n_max = max(n)
-    with open('path_allot.csv', 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(['Time','Type','ID','x', 'y','Target/finish'])
-        for i in range(n_max):
-            for j in range(n_starts):
-                if i < n[j]:
-                    writer.writerow([i, 'robot', j, path_allot[j][i][0], path_allot[j][i][1], targets[j]])
-                else:
-                    writer.writerow([i, 'robot', j, path_allot[j][-1][0], path_allot[j][-1][1], targets[j]])
-            for j in range(n_tasks):
-                writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], map.tasks_finish[j]])
+
+    writeCsv_flag = False
+    if writeCsv_flag:
+        with open('path_allot.csv', 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Time','Type','ID','x', 'y','Target/finish'])
+            for i in range(n_max):
+                for j in range(n_starts):
+                    if i < n[j]:
+                        writer.writerow([i, 'robot', j, path_allot[j][i][0], path_allot[j][i][1], targets[j]])
+                    else:
+                        writer.writerow([i, 'robot', j, path_allot[j][-1][0], path_allot[j][-1][1], targets[j]])
+                        if map.checkTaskFinish(path_allot[j][-1][0], path_allot[j][-1][1], targets[j]):
+                            targets[j] = -1
+                for j in range(n_tasks):
+                    writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], map.tasks_finish[j]])
      
 
     
