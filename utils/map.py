@@ -161,15 +161,25 @@ class Map():
         self.tasks_grid[:,0] = np.floor(self.tasks[:,0]*self.n_x).astype(int)
         self.tasks_grid[:,1] = np.floor(self.tasks[:,1]*self.n_y).astype(int)
 
-    # input: true coordinates & id of task
+    # input: true coordinates(default) or norm coordinates, & id of task
     # if point and task are in the same grid, return True
-    def checkTaskFinish(self, x:float, y:float, task_id:int):
-        x = np.maximum(x, 0)
-        x = np.minimum(x, self.x_max)
-        y = np.maximum(y, 0)
-        y = np.minimum(y, self.y_max)
-        x_index = np.floor(x/self.resolution_x).astype(int)
-        y_index = np.floor(y/self.resolution_y).astype(int)
+    def checkTaskFinish(self, x:float, y:float, task_id:int,norm_flag=False):
+        x_index = -1
+        y_index = -1
+        if norm_flag:
+            x = np.maximum(x, 0)
+            x = np.minimum(x, 1)
+            y = np.maximum(y, 0)
+            y = np.minimum(y, 1)
+            x_index = np.floor(x*self.n_x).astype(int)
+            y_index = np.floor(y*self.n_y).astype(int)
+        else:
+            x = np.maximum(x, 0)
+            x = np.minimum(x, self.x_max)
+            y = np.maximum(y, 0)
+            y = np.minimum(y, self.y_max)
+            x_index = np.floor(x/self.resolution_x).astype(int)
+            y_index = np.floor(y/self.resolution_y).astype(int)
         if self.tasks_grid[task_id][0] == x_index and self.tasks_grid[task_id][1] == y_index:
             self.tasks_finish[task_id] = True
             return True

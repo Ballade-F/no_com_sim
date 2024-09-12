@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import utils.map as map
 import heapq
 
 class astar_node():
@@ -50,6 +49,7 @@ class AStarPlanner():
 
     def _heuristic(self, node:astar_node, goal:astar_node):
         return self._get_distance(node, goal)
+        # return 0
     
     def _is_valid_node(self, x:int, y:int):
         if x < 0 or x >= self.n_x or y < 0 or y >= self.n_y:
@@ -90,7 +90,10 @@ class AStarPlanner():
 
         while len(open_list) > 0:
             # pop the node with the smallest f value, which means put it into the close list
-            current_node = open_list.pop(0)
+            #debug
+            # print([(p.x,p.y,p.f) for p in open_list])
+            current_node = heapq.heappop(open_list)
+            # current_node = open_list.pop(0)
             # if the node is in the close list, skip
             if current_node.set_flag == 2:
                 continue
@@ -133,13 +136,13 @@ class AStarPlanner():
 
     
 if __name__ == '__main__':
-    grid_map = np.zeros((100, 100))
-    grid_map[20:40, 20:40] = 1
-    grid_map[60:80, 60:80] = 1
-    astar_planner = AStarPlanner(grid_map)
-    path, dis = astar_planner.plan((10, 10), (90, 90))
+    grid_map = np.zeros((11, 12))
+    # grid_map[20:40, 20:40] = 1
+    # grid_map[60:80, 60:80] = 1
+    astar_planner = AStarPlanner(grid_map,1,1)
+    path, dis = astar_planner.plan((0, 0), (5, 10))
     print(dis)
     # print(path)
-    plt.imshow(grid_map)
+    plt.imshow(grid_map, cmap='gray', vmin=0, vmax=255)
     plt.plot([x[0] for x in path], [x[1] for x in path], 'r')
     plt.show()

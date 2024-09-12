@@ -8,10 +8,10 @@ from task_allocation import hungarian
 import time as TM
 
 if __name__ == '__main__':
-    n_starts = 4
-    n_tasks = 4
+    n_starts = 1
+    n_tasks = 1
     map = mp.Map(0, n_starts, n_tasks, 100, 100, 1, 1)
-    map.setObstacleRandn(2026)
+    map.setObstacleRandn(2025)
     # map.plot()
     # map.plotGrid()
     astar_planner = path_planner.AStarPlanner(map.grid_map, map.resolution_x, map.resolution_y)
@@ -46,17 +46,18 @@ if __name__ == '__main__':
 
     writeCsv_flag = False
     if writeCsv_flag:
-        with open('path_allot.csv', 'w', newline='') as csvfile:
+        with open('/home/zj/Desktop/wzr/no_com_sim/intention_data/path_allot.csv', 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['Time','Type','ID','x', 'y','Target/finish'])
-            for i in range(n_max):
+            for i in range(n_max+1):
                 for j in range(n_starts):
                     if i < n[j]:
                         writer.writerow([i, 'robot', j, path_allot[j][i][0], path_allot[j][i][1], targets[j]])
                     else:
-                        writer.writerow([i, 'robot', j, path_allot[j][-1][0], path_allot[j][-1][1], targets[j]])
                         if map.checkTaskFinish(path_allot[j][-1][0], path_allot[j][-1][1], targets[j]):
                             targets[j] = -1
+                        writer.writerow([i, 'robot', j, path_allot[j][-1][0], path_allot[j][-1][1], targets[j]])
+
                 for j in range(n_tasks):
                     writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], map.tasks_finish[j]])
      
@@ -67,8 +68,8 @@ if __name__ == '__main__':
 
     #plot path
     fig, ax = plt.subplots()
-    ax.set_xlim(0, map.n_x)
-    ax.set_ylim(0, map.n_y)
+    ax.set_xlim(0, map.n_x*map.resolution_x)
+    ax.set_ylim(0, map.n_y*map.resolution_y)
     img = 255-map.grid_map*255
     img = img.transpose()
     ax.imshow(img, cmap='gray',vmin=0, vmax=255)
