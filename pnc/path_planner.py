@@ -136,13 +136,16 @@ class AStarPlanner():
 
     
 if __name__ == '__main__':
-    grid_map = np.zeros((11, 12))
-    # grid_map[20:40, 20:40] = 1
-    # grid_map[60:80, 60:80] = 1
+    grid_map = np.zeros((100, 100))
+    grid_map[20:80, 20:80] = 1
+    grid_map[10:40, 25:75] = 0
+    grid_map[60:90, 25:75] = 0
     astar_planner = AStarPlanner(grid_map,1,1)
-    path, dis = astar_planner.plan((0, 0), (5, 10))
+    path, dis = astar_planner.plan((30, 48), (70, 50))
+    img = 255-grid_map*255
+    img = img.transpose()
     print(dis)
     # print(path)
-    plt.imshow(grid_map, cmap='gray', vmin=0, vmax=255)
+    plt.imshow(img, cmap='gray', vmin=0, vmax=255)
     plt.plot([x[0] for x in path], [x[1] for x in path], 'r')
     plt.show()
