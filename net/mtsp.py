@@ -189,6 +189,12 @@ class ActNet(nn.Module):
 
 
     def attention(self, x, wq, wk, wv, w, add_residual):
+        '''
+        x: (batch, node_size, embedding_size)   
+        wq,wk:nn.Linear(embedding_size, attention_size)     
+        wv:nn.Linear(embedding_size, embedding_size)    
+        w:nn.Linear(embedding_size, embedding_size)     
+        '''
         q = wq(x)
         k = wk(x)
         v = wv(x)

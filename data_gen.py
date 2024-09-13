@@ -9,7 +9,7 @@ from task_allocation import hungarian
 import time as TM
 
 if __name__ == '__main__':
-    n_map = 1
+    n_map = 50
     for seed in range(n_map):
         point_n_rng = np.random.default_rng(seed+n_map)
         n_points = point_n_rng.integers(5, 10)
@@ -44,10 +44,10 @@ if __name__ == '__main__':
         n = [len(path) for path in path_allot_norm]
         n_max = max(n)
 
-        writeCsv_flag = False
+        writeCsv_flag = True
         if writeCsv_flag:
             # Create directory for the map
-            dir_name = f"map_{seed}"
+            dir_name = f"intention_data/map_{seed}"
             os.makedirs(dir_name, exist_ok=True)
             with open(os.path.join(dir_name, "map_info.txt"), "w") as txt_file:
                 txt_file.write(f"Map n_x: {map.n_x}\n")
