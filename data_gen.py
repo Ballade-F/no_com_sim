@@ -1,5 +1,6 @@
 import csv
 import os
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 import utils.map as mp
@@ -9,10 +10,11 @@ from task_allocation import hungarian
 import time as TM
 
 if __name__ == '__main__':
-    n_map = 50
+    n_map = 10
     for seed in range(n_map):
         point_n_rng = np.random.default_rng(seed+n_map)
-        n_points = point_n_rng.integers(5, 10)
+        # n_points = point_n_rng.integers(5, 10)
+        n_points = 5
         n_starts = n_points
         n_tasks = n_points
         map = mp.Map(0, n_starts, n_tasks, 100, 100, 1, 1)
@@ -42,26 +44,43 @@ if __name__ == '__main__':
             path_allot_norm.append(path_norm)
             
         n = [len(path) for path in path_allot_norm]
-        n_max = max(n)
+        n_max = max(n)+1
 
         writeCsv_flag = True
         if writeCsv_flag:
             # Create directory for the map
             dir_name = f"intention_data/map_{seed}"
             os.makedirs(dir_name, exist_ok=True)
-            with open(os.path.join(dir_name, "map_info.txt"), "w") as txt_file:
-                txt_file.write(f"Map n_x: {map.n_x}\n")
-                txt_file.write(f"Map n_y: {map.n_y}\n")
-                txt_file.write(f"Map resolution_x: {map.resolution_x}\n")
-                txt_file.write(f"Map resolution_y: {map.resolution_y}\n")
-                txt_file.write(f"Number of starts: {n_starts}\n")
-                txt_file.write(f"Number of tasks: {n_tasks}\n")
 
+            # Save map information to a JSON file
+            map_info = {
+                "Map_n_x": int(map.n_x),
+                "Map_n_y": int(map.n_y),
+                "Map_resolution_x": float(map.resolution_x),
+                "Map_resolution_y": float(map.resolution_y),
+                "n_starts": int(n_starts),
+                "n_tasks": int(n_tasks),
+                "length": n_max
+
+            }
+            with open(os.path.join(dir_name, "map_info.json"), "w") as json_file:
+                json.dump(map_info, json_file, indent=4)
+
+            ##txt
+            # with open(os.path.join(dir_name, "map_info.txt"), "w") as txt_file:
+            #     txt_file.write(f"Map n_x: {map.n_x}\n")
+            #     txt_file.write(f"Map n_y: {map.n_y}\n")
+            #     txt_file.write(f"Map resolution_x: {map.resolution_x}\n")
+            #     txt_file.write(f"Map resolution_y: {map.resolution_y}\n")
+            #     txt_file.write(f"Number of starts: {n_starts}\n")
+            #     txt_file.write(f"Number of tasks: {n_tasks}\n")
+
+            #csv
             with open(os.path.join(dir_name, "trajectory.csv"), "w", newline='') as csv_file:
                 writer = csv.writer(csv_file)
                 writer.writerow(['Time','Type','ID','x', 'y','feature'])
                 # simulate the trajectory
-                for i in range(n_max+1):
+                for i in range(n_max):
                     for j in range(n_starts):
                         if i < n[j]:
                             writer.writerow([i, 'robot', j, path_allot_norm[j][i][0], path_allot_norm[j][i][1], col_ind[j]])
@@ -71,7 +90,7 @@ if __name__ == '__main__':
                             writer.writerow([i, 'robot', j, path_allot_norm[j][-1][0], path_allot_norm[j][-1][1], col_ind[j]])
 
                     for j in range(n_tasks):
-                        writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], map.tasks_finish[j]])
+                        writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], int(map.tasks_finish[j])])
 
         # plot the map
         if seed == n_map-1:

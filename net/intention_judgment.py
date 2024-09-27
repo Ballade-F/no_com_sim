@@ -80,7 +80,7 @@ class IntentionNet(nn.Module):
     def attention(self, x_r,x_t, wq_r, wk_r, wv_r, w_r, wq_t, wk_t, wv_t, w_t, add_residual):
         '''
         x_r: (batch, robot_n, embedding_size)   
-        x_t: (batch, task_n, embedding_size)        
+        x_t: (batch, self.task_n, embedding_size)        
         '''
         q_r = wq_r(x_r)
         k_r = wk_r(x_r)
@@ -130,31 +130,66 @@ class IntentionNet(nn.Module):
         # encoder
         # 第一层
         x_r,x_t = self.attention(x_r,x_t,self.wq_r1,self.wk_r1,self.wv_r1,self.w_r1,self.wq_t1,self.wk_t1,self.wv_t1,self.w_t1, add_residual=True)
-        # TODO: xr,xt合成x
+        x = torch.cat((x_r, x_t), dim=1)#(batch, robot_n+task_n, embedding_size)
         x = self.bn11(x.permute(0, 2, 1)).permute(0, 2, 1)#BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化
         x1 = self.ffc11(x)
         x1 = F.relu(x1)
         x1 = self.ffc12(x1)
         x = x1 + x
         x = self.bn12(x.permute(0, 2, 1)).permute(0, 2, 1)
-        # TODO: x拆成xr，xt
+        x_r = x[:, :self.robot_n, :]
+        x_t = x[:, self.robot_n:, :]
         # 第二层
         x_r,x_t = self.attention(x_r,x_t,self.wq_r2,self.wk_r2,self.wv_r2,self.w_r2,self.wq_t2,self.wk_t2,self.wv_t2,self.w_t2, add_residual=True)
-        # TODO: xr,xt合成x
+        x = torch.cat((x_r, x_t), dim=1)
         x = self.bn21(x.permute(0, 2, 1)).permute(0, 2, 1)#BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化
         x1 = self.ffc21(x)
         x1 = F.relu(x1)
         x1 = self.ffc22(x1)
         x = x1 + x
         x = self.bn22(x.permute(0, 2, 1)).permute(0, 2, 1)
-        # TODO: x拆成xr，xt
+        x_r = x[:, :self.robot_n, :]
+        x_t = x[:, self.robot_n:, :]
         # 第三层
         x_r,x_t = self.attention(x_r,x_t,self.wq_r3,self.wk_r3,self.wv_r3,self.w_r3,self.wq_t3,self.wk_t3,self.wv_t3,self.w_t3, add_residual=True)
-        # TODO: xr,xt合成x
+        x = torch.cat((x_r, x_t), dim=1)
         x = self.bn31(x.permute(0, 2, 1)).permute(0, 2, 1)#BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化
         x1 = self.ffc31(x)
         x1 = F.relu(x1)
         x1 = self.ffc32(x1)
         x = x1 + x
         x = self.bn32(x.permute(0, 2, 1)).permute(0, 2, 1)
-        # TODO: x拆成xr，xt
+        x_r = x[:, :self.robot_n, :]
+        x_t = x[:, self.robot_n:, :]
+
+        #decoder
+        q_rd = self.wq_rd(x_r)
+        k_td = self.wk_td(x_t)
+        k_td = k_td.permute(0, 2, 1)#(batch, embedding_size, task_n)
+        qk_d = torch.matmul(q_rd, k_td) / (self.embedding_size ** 0.5)#(batch, robot_n, task_n)
+        p = F.softmax(qk_d, dim=-1)
+
+        return p
+    
+
+# Test function
+def test_intention_judgment_model():
+    batch_size = 2
+    robot_n = 5
+    task_n = 3
+    embedding_size = 16
+    attention_head = 4
+
+    model = IntentionNet(embedding_size, robot_n, task_n, batch_size, attention_head)
+    model.to(DEVICE)
+
+    x_r = torch.randn(batch_size, robot_n, 10).to(DEVICE)
+    x_t = torch.randn(batch_size, task_n + 1, 3).to(DEVICE)
+
+    output = model(x_r, x_t, is_train=True)
+    print("Output Shape:", output.shape)
+    assert output.shape == (batch_size, robot_n, task_n + 1)
+    assert isinstance(output, torch.Tensor)
+
+if __name__ == "__main__":
+    test_intention_judgment_model()
