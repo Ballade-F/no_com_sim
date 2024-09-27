@@ -29,6 +29,52 @@ class IntentionNet(nn.Module):
         self.embedding_task = nn.Linear(self.feature_task, embedding_size)
 
         # encoder
+        # TODO:R和T的各个W矩阵有必要分开吗？有没有可能不收敛
+        # TODO:正则化
+        self.wq_r1 = nn.Linear(embedding_size, embedding_size)
+        self.wk_r1 = nn.Linear(embedding_size, embedding_size)
+        self.wv_r1 = nn.Linear(embedding_size, embedding_size)
+        self.w_r1 = nn.Linear(embedding_size, embedding_size)
+        self.wq_t1 = nn.Linear(embedding_size, embedding_size)
+        self.wk_t1 = nn.Linear(embedding_size, embedding_size)
+        self.wv_t1 = nn.Linear(embedding_size, embedding_size)
+        self.w_t1 = nn.Linear(embedding_size, embedding_size)
+        self.ffc11 = nn.Linear(embedding_size, embedding_size)
+        self.ffc12 = nn.Linear(embedding_size, embedding_size)
+        self.bn11 = nn.BatchNorm1d(embedding_size)
+        self.bn12 = nn.BatchNorm1d(embedding_size)
+
+        self.wq_r2 = nn.Linear(embedding_size, embedding_size)
+        self.wk_r2 = nn.Linear(embedding_size, embedding_size)
+        self.wv_r2 = nn.Linear(embedding_size, embedding_size)
+        self.w_r2 = nn.Linear(embedding_size, embedding_size)
+        self.wq_t2 = nn.Linear(embedding_size, embedding_size)
+        self.wk_t2 = nn.Linear(embedding_size, embedding_size)
+        self.wv_t2 = nn.Linear(embedding_size, embedding_size)
+        self.w_t2 = nn.Linear(embedding_size, embedding_size)
+        self.ffc21 = nn.Linear(embedding_size, embedding_size)
+        self.ffc22 = nn.Linear(embedding_size, embedding_size)
+        self.bn21 = nn.BatchNorm1d(embedding_size)
+        self.bn22 = nn.BatchNorm1d(embedding_size)
+
+        self.wq_r3 = nn.Linear(embedding_size, embedding_size)
+        self.wk_r3 = nn.Linear(embedding_size, embedding_size)
+        self.wv_r3 = nn.Linear(embedding_size, embedding_size)
+        self.w_r3 = nn.Linear(embedding_size, embedding_size)
+        self.wq_t3 = nn.Linear(embedding_size, embedding_size)
+        self.wk_t3 = nn.Linear(embedding_size, embedding_size)
+        self.wv_t3 = nn.Linear(embedding_size, embedding_size)
+        self.w_t3 = nn.Linear(embedding_size, embedding_size)
+        self.ffc31 = nn.Linear(embedding_size, embedding_size)
+        self.ffc32 = nn.Linear(embedding_size, embedding_size)
+        self.bn31 = nn.BatchNorm1d(embedding_size)
+        self.bn32 = nn.BatchNorm1d(embedding_size)
+
+        #decoder
+        # TODO: 试试用mask盖住已完成的
+        self.wq_rd = nn.Linear(embedding_size, embedding_size)
+        self.wk_td = nn.Linear(embedding_size, embedding_size)
+
 
     
     def attention(self, x_r,x_t, wq_r, wk_r, wv_r, w_r, wq_t, wk_t, wv_t, w_t, add_residual):
@@ -65,9 +111,10 @@ class IntentionNet(nn.Module):
         z_r = torch.matmul(qk_r, v) #(batch, attention_head, robot_n, dk)
         z_r = z_r.permute(0, 2, 1, 3) #(batch, robot_n, attention_head, dk)
         z_r = z_r.contiguous().view(self.batch_size, self.robot_n, self.embedding_size)
+        z_r = w_r(z_r)
         z_t = torch.matmul(qk_t, v_t) #(batch, attention_head, task_n, dk)
         z_t = z_t.permute(0, 2, 1, 3) #(batch, task_n, attention_head, dk)
-        z_t = z_t.contiguous().view(self.batch_size, self.task_n, self.embedding_size)z_r)
+        z_t = z_t.contiguous().view(self.batch_size, self.task_n, self.embedding_size)
         z_t = w_t(z_t)
 
         if add_residual:
@@ -76,3 +123,38 @@ class IntentionNet(nn.Module):
         return z_r, z_t
 
 
+    def forward(self,x_r_,x_t_,is_train):
+         # 嵌入层
+        x_r = self.embedding_robot(x_r_)
+        x_t = self.embedding_task(x_t_)
+        # encoder
+        # 第一层
+        x_r,x_t = self.attention(x_r,x_t,self.wq_r1,self.wk_r1,self.wv_r1,self.w_r1,self.wq_t1,self.wk_t1,self.wv_t1,self.w_t1, add_residual=True)
+        # TODO: xr,xt合成x
+        x = self.bn11(x.permute(0, 2, 1)).permute(0, 2, 1)#BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化
+        x1 = self.ffc11(x)
+        x1 = F.relu(x1)
+        x1 = self.ffc12(x1)
+        x = x1 + x
+        x = self.bn12(x.permute(0, 2, 1)).permute(0, 2, 1)
+        # TODO: x拆成xr，xt
+        # 第二层
+        x_r,x_t = self.attention(x_r,x_t,self.wq_r2,self.wk_r2,self.wv_r2,self.w_r2,self.wq_t2,self.wk_t2,self.wv_t2,self.w_t2, add_residual=True)
+        # TODO: xr,xt合成x
+        x = self.bn21(x.permute(0, 2, 1)).permute(0, 2, 1)#BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化
+        x1 = self.ffc21(x)
+        x1 = F.relu(x1)
+        x1 = self.ffc22(x1)
+        x = x1 + x
+        x = self.bn22(x.permute(0, 2, 1)).permute(0, 2, 1)
+        # TODO: x拆成xr，xt
+        # 第三层
+        x_r,x_t = self.attention(x_r,x_t,self.wq_r3,self.wk_r3,self.wv_r3,self.w_r3,self.wq_t3,self.wk_t3,self.wv_t3,self.w_t3, add_residual=True)
+        # TODO: xr,xt合成x
+        x = self.bn31(x.permute(0, 2, 1)).permute(0, 2, 1)#BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化
+        x1 = self.ffc31(x)
+        x1 = F.relu(x1)
+        x1 = self.ffc32(x1)
+        x = x1 + x
+        x = self.bn32(x.permute(0, 2, 1)).permute(0, 2, 1)
+        # TODO: x拆成xr，xt
