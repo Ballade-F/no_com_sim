@@ -167,9 +167,9 @@ class IntentionNet(nn.Module):
         k_td = self.wk_td(x_t)
         k_td = k_td.permute(0, 2, 1)#(batch, embedding_size, task_n)
         qk_d = torch.matmul(q_rd, k_td) / (self.embedding_size ** 0.5)#(batch, robot_n, task_n)
-        p = F.softmax(qk_d, dim=-1)
+        # p = F.softmax(qk_d, dim=-1)
 
-        return p
+        return qk_d
     
 
 # Test function
