@@ -7,8 +7,11 @@ from dataset_intention import MapDataset
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
+    print('Using GPU')
 else:
     DEVICE = torch.device('cpu')
+    print('Using CPU')
+# DEVICE = torch.device('cpu')
 
 
 def train_intention_net():
@@ -18,7 +21,7 @@ def train_intention_net():
     task_n = 5
     batch_size = 16
     attention_head = 4
-    num_epochs = 10
+    num_epochs = 20
     learning_rate = 0.001
 
     # Initialize model, loss function, and optimizer
@@ -30,7 +33,7 @@ def train_intention_net():
     map_dirs = "intention_data"
     n_map = 10
     dataset = MapDataset(map_dirs, n_map, robot_n, task_n)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     # Training loop
     for epoch in range(num_epochs):

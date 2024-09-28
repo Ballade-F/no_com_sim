@@ -4,10 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 
-if torch.cuda.is_available():
-    DEVICE = torch.device('cuda')
-else:
-    DEVICE = torch.device('cpu')
+
 # DEVICE = torch.device('cpu')
 
 class IntentionNet(nn.Module):
@@ -192,4 +189,8 @@ def test_intention_judgment_model():
     assert isinstance(output, torch.Tensor)
 
 if __name__ == "__main__":
+    if torch.cuda.is_available():
+        DEVICE = torch.device('cuda')
+    else:
+        DEVICE = torch.device('cpu')
     test_intention_judgment_model()
