@@ -4,13 +4,13 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import utils.map as mp
-import pnc.ctrl as ctrl
+# import pnc.ctrl as ctrl
 import pnc.path_planner as path_planner
 from task_allocation import hungarian
 import time as TM
 
 if __name__ == '__main__':
-    n_map = 10
+    n_map = 100
     for seed in range(n_map):
         point_n_rng = np.random.default_rng(seed+n_map)
         # n_points = point_n_rng.integers(5, 10)

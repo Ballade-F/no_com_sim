@@ -1,4 +1,6 @@
 import torch
+import os
+import time
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -26,12 +28,14 @@ def train_intention_net():
 
     # Initialize model, loss function, and optimizer
     model = IntentionNet(embedding_size, robot_n, task_n, batch_size, attention_head).to(DEVICE)
+    save_dir = '/home/users/wzr/save/intention/'
+    min = 100
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # Load dataset
-    map_dirs = "intention_data"
-    n_map = 10
+    map_dirs = "/home/users/wzr/project/no_com_sim/intention_data/"
+    n_map = 100
     dataset = MapDataset(map_dirs, n_map, robot_n, task_n)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
@@ -57,6 +61,10 @@ def train_intention_net():
             running_loss += loss.item()
             if i % 10 == 9:  # Print every 10 mini-batches
                 print(f'Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(dataloader)}], Loss: {running_loss / 10:.4f}')
+                if running_loss < min:
+                    min = running_loss
+                    torch.save(model.state_dict(), os.path.join(save_dir,'date{}-epoch{}-i{}-coss_{:.5f}.pt'.format(
+                        time.strftime("%Y-%m-%d", time.localtime()), epoch, i, running_loss)))
                 running_loss = 0.0
 
     print('Finished Training')
