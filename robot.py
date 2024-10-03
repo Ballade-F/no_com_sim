@@ -11,7 +11,7 @@ import pnc.path_planner as path_planner
 import task_allocation.hungarian as hungarian
 import task_allocation.greedy_allocation_lib as greedy
 import task_allocation.ga_allocation_lib as ga
-import net.mtsp as mtsp
+import net.allocation as allocation
 import net.dataset_intention as dataset_intention
 import net.intention_judgment as intention_judgment
 
@@ -50,7 +50,7 @@ class Robot:
     # 算法类实例与网络类实例
         self.controller = dwa.DWA()
         self.path_planner = path_planner.AStarPlanner(self.map.map, self.map.resolution_x, self.map.resolution_y)
-        self.task_allocation = mtsp.ActNet()
+        self.task_allocation = allocation.ActNet()
         self.intention_judgment = intention_judgment.IntentionNet()
 
     # 初始化
