@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 
-class MapDataset(Dataset):
+class IntentionDataset(Dataset):
     def __init__(self, map_dirs, n_map, n_robot, n_task):
         self.map_dirs = map_dirs
         self.n_map = n_map
@@ -74,12 +74,12 @@ class MapDataset(Dataset):
         
 
 # Test function
-def test_mapdataset():
+def test_IntentionDataset():
     map_dirs = "intention_data"
     n_map = 3
     n_robot = 5
     n_task = 5
-    dataset = MapDataset(map_dirs, n_map, n_robot, n_task)
+    dataset = IntentionDataset(map_dirs, n_map, n_robot, n_task)
     print("Dataset Length:", len(dataset))
     print("last data", dataset[74])
     dataloader = DataLoader(dataset, batch_size=4, shuffle=False)
@@ -95,4 +95,4 @@ def test_mapdataset():
         break  # Test only the first batch
 
 if __name__ == "__main__":
-    test_mapdataset()
+    test_IntentionDataset()

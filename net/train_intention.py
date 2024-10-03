@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from intention_judgment import IntentionNet
-from dataset_intention import MapDataset
+from dataset_intention import IntentionDataset
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -36,7 +36,7 @@ def train_intention_net():
     # Load dataset
     map_dirs = "/home/users/wzr/project/no_com_sim/intention_data/"
     n_map = 100
-    dataset = MapDataset(map_dirs, n_map, robot_n, task_n)
+    dataset = IntentionDataset(map_dirs, n_map, robot_n, task_n)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     # Training loop

@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #obstacle generator parameters
-ob_r_factor = 1.5
+ob_r_factor = 1
 ob_points_min = 5
 ob_points_max = 10
 
