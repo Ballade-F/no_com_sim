@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from local_embed import Self_Attention
+from local_embed import Self_Attention, Self_Cross_Attention
 
 
 

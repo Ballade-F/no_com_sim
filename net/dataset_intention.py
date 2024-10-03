@@ -8,6 +8,7 @@ import pandas as pd
 
 class IntentionDataset(Dataset):
     def __init__(self, map_dirs, n_map, n_robot, n_task):
+        super(IntentionDataset, self).__init__()
         self.map_dirs = map_dirs
         self.n_map = n_map
         self.n_robot = n_robot

@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 
 #obstacle generator parameters
 ob_r_factor = 1
-ob_points_min = 5
-ob_points_max = 10
+ob_points_min = 8
+ob_points_max = 8
 
 
 
@@ -130,7 +130,8 @@ class Map():
         else:
             ob_r_max = ob_r_factor/self.n_obstacles
         for i in range(self.n_obstacles):
-            n_points = rng.integers(ob_points_min, ob_points_max)
+            # n_points = rng.integers(ob_points_min, ob_points_max)
+            n_points = 8
             ob_angles = rng.uniform(0, 2*np.pi, n_points)
             ob_angles = np.sort(ob_angles)
             ob_r = rng.uniform(0, ob_r_max, n_points)
