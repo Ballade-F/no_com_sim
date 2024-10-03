@@ -18,24 +18,24 @@ else:
 
 def train_intention_net():
     # Hyperparameters
-    embedding_size = 32
+    embedding_size = 128
     robot_n = 5
     task_n = 5
-    batch_size = 16
-    attention_head = 4
-    num_epochs = 20
+    batch_size = 128
+    attention_head = 8
+    num_epochs = 50
     learning_rate = 0.001
 
     # Initialize model, loss function, and optimizer
     model = IntentionNet(embedding_size, robot_n, task_n, batch_size, attention_head).to(DEVICE)
-    save_dir = '/home/users/wzr/save/intention/'
-    min = 100
+    save_dir = '/home/users/wzr/project/no_com_sim/model_save/intention/'
+    min = 0.1
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # Load dataset
     map_dirs = "/home/users/wzr/project/no_com_sim/intention_data/"
-    n_map = 100
+    n_map = 200
     dataset = MapDataset(map_dirs, n_map, robot_n, task_n)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 

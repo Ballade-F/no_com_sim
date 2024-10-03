@@ -62,13 +62,13 @@ class Self_Cross_Attention(nn.Module):
         self.wq = nn.Linear(embedding_size, embedding_size)
         nn.init.kaiming_normal_(self.wq.weight)
         self.wk_a = nn.Linear(embedding_size, embedding_size)
-        nn.init.kaiming_normal_(self.wk.weight)
+        nn.init.kaiming_normal_(self.wk_a.weight)
         self.wk_b = nn.Linear(embedding_size, embedding_size)
-        nn.init.kaiming_normal_(self.wk.weight)
+        nn.init.kaiming_normal_(self.wk_b.weight)
         self.wv_a = nn.Linear(embedding_size, embedding_size)
-        nn.init.kaiming_normal_(self.wv.weight)
+        nn.init.kaiming_normal_(self.wv_a.weight)
         self.wv_b = nn.Linear(embedding_size, embedding_size)
-        nn.init.kaiming_normal_(self.wv.weight)
+        nn.init.kaiming_normal_(self.wv_b.weight)
         self.w = nn.Linear(embedding_size, embedding_size)
         nn.init.kaiming_normal_(self.w.weight)
 
@@ -109,7 +109,7 @@ class EncoderBlock(nn.Module):
         self.robot_n = robot_n
         self.task_n = task_n + 1 # 最后一个task是虚拟task，用于结束任务的robot
 
-        self.robot_attention = Self_Attention(embedding_size, attention_head)
+        self.robot_attention = Self_Cross_Attention(embedding_size, attention_head)
         self.task_attention = Self_Attention(embedding_size, attention_head)
         self.bn1 = nn.BatchNorm1d(embedding_size)
         self.bn2 = nn.BatchNorm1d(embedding_size)
@@ -120,7 +120,7 @@ class EncoderBlock(nn.Module):
     def forward(self, x):
         x_r = x[:, :self.robot_n, :]
         x_t = x[:, self.robot_n:, :]
-        x_r = self.robot_attention(x_r)
+        x_r = self.robot_attention(x_r,x_t)
         x_t = self.task_attention(x_t)
         x = torch.cat((x_r, x_t), dim=1) #(batch, robot_n+task_n, embedding_size)
         x = self.bn1(x.permute(0, 2, 1)).permute(0, 2, 1) #BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化

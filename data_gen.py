@@ -10,14 +10,14 @@ from task_allocation import hungarian
 import time as TM
 
 if __name__ == '__main__':
-    n_map = 100
+    n_map = 200
     for seed in range(n_map):
         point_n_rng = np.random.default_rng(seed+n_map)
         # n_points = point_n_rng.integers(5, 10)
         n_points = 5
         n_starts = n_points
         n_tasks = n_points
-        map = mp.Map(0, n_starts, n_tasks, 100, 100, 1, 1)
+        map = mp.Map(0, n_starts, n_tasks, 200, 200, 1, 1)
         map.setObstacleRandn(seed)
 
         astar_planner = path_planner.AStarPlanner(map.grid_map, map.resolution_x, map.resolution_y)
