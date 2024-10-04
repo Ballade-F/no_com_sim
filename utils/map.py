@@ -4,9 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #obstacle generator parameters
-ob_r_factor = 1
+ob_rmax_factor = 0.1
+ob_rmin_factor = 0.06
 ob_points_min = 8
-ob_points_max = 8
+ob_points_max = 10
+n_ob_points = 16
 
 
 
@@ -122,19 +124,23 @@ class Map():
 
         self._obstacle2grid()
 
-    def setObstacleRandn(self, seed:int):
-        rng = np.random.default_rng(seed)
+    def setObstacleRandn(self, rng:np.random.Generator):
+        # rng = np.random.default_rng(seed)
         center_points = rng.uniform(0, 1, (self.n_obstacles, 2))
         if self.n_obstacles == 0 :
             ob_r_max = 1
+            ob_r_min = 0
         else:
-            ob_r_max = ob_r_factor/self.n_obstacles
+            # ob_r_max = ob_rmax_factor/self.n_obstacles
+            # ob_r_min = ob_rmin_factor/self.n_obstacles
+            ob_r_max = ob_rmax_factor
+            ob_r_min = ob_rmin_factor
         for i in range(self.n_obstacles):
             # n_points = rng.integers(ob_points_min, ob_points_max)
-            n_points = 8
+            n_points = n_ob_points
             ob_angles = rng.uniform(0, 2*np.pi, n_points)
             ob_angles = np.sort(ob_angles)
-            ob_r = rng.uniform(0, ob_r_max, n_points)
+            ob_r = rng.uniform(ob_r_min, ob_r_max, n_points)
 
             ob_points = np.zeros((n_points, 2))
             ob_points[:, 0] = center_points[i, 0] + ob_r*np.cos(ob_angles)
@@ -224,8 +230,9 @@ class Map():
         plt.show()
 
 if __name__ == '__main__':
-    map = Map(3, 2, 2, 100, 100, 1, 1)
-    map.setObstacleRandn(2)
+    map = Map(9, 2, 2, 100, 100, 1, 1)
+    rng = np.random.default_rng(2)
+    map.setObstacleRandn(rng)
     map.plot()
     map.plotGrid()
 

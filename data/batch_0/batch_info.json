@@ -1,0 +1,11 @@
+{
+    "seed": 0,
+    "batch_size": 2,
+    "n_robot": 3,
+    "n_task": 3,
+    "n_obstacle": 2,
+    "n_x": 100,
+    "n_y": 100,
+    "resolution_x": 0.1,
+    "resolution_y": 0.1
+}

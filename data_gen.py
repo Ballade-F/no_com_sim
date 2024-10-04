@@ -9,7 +9,87 @@ import pnc.path_planner as path_planner
 from task_allocation import hungarian
 import time as TM
 
-if __name__ == '__main__':
+
+def AllocationGen(dir, seed, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y):
+
+    rng = np.random.default_rng(seed)
+
+    dataset_info = {
+        "time": TM.strftime("%Y-%m-%d", TM.localtime()),
+        "batch_size": batch_size
+    }
+    with open(os.path.join(dir, "dataset_info.json"), "w") as json_file:
+        json.dump(dataset_info, json_file, indent=4)
+
+    dir_name = os.path.join(dir, f"batch_{seed}")
+    os.makedirs(dir_name, exist_ok=True)
+    # Save map information to a JSON file
+    batch_info = {
+        "seed": seed,
+        "batch_size": batch_size,
+        "n_robot": n_robot,
+        "n_task": n_task,
+        "n_obstacle": n_obstacle,
+        "n_x": n_x,
+        "n_y": n_y,
+        "resolution_x": resolution_x,
+        "resolution_y": resolution_y
+    }
+    with open(os.path.join(dir_name, "batch_info.json"), "w") as json_file:
+        json.dump(batch_info, json_file, indent=4)
+
+    for i in range(batch_size):
+        dir_name_map = os.path.join(dir_name, f"map_{i}")
+        os.makedirs(dir_name_map, exist_ok=True)
+        map = mp.Map(n_obstacle, n_robot, n_task, n_x, n_y, resolution_x, resolution_y)
+        map.setObstacleRandn(rng)
+        astar_planner = path_planner.AStarPlanner(map.grid_map, map.resolution_x, map.resolution_y)
+        starts = map.starts_grid
+        tasks = map.tasks_grid
+        points = np.concatenate((starts, tasks), axis=0)
+        # 下三角矩阵
+        costmat = np.full((n_robot+n_task, n_robot+n_task),fill_value=-1.0,dtype=float)
+        for j in range(n_robot+n_task):
+            for k in range(j+1):
+                astar_planner.resetNodes()
+                path, costmat[j, k] = astar_planner.plan(points[j], points[k])
+                # 对称矩阵
+                costmat[k, j] = costmat[j, k]
+
+        # Save cost matrix to a CSV file
+        with open(os.path.join(dir_name_map, f"costmat.csv"), "w", newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            for row in costmat:
+                writer.writerow(row)
+
+        # Save map information to a csv file
+        with open(os.path.join(dir_name_map, f"info.csv"), "w", newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["Type", "x", "y"])
+            for start in map.starts:
+                writer.writerow([-1, start[0], start[1]])
+            for task in map.tasks:
+                writer.writerow([0, task[0], task[1]])
+            for ob_idx, ob in enumerate(map.obstacles):
+                for point in ob:
+                    writer.writerow([ob_idx+1, point[0], point[1]])
+
+        #plot the map
+        if i == batch_size-1:
+            map.plot()
+            
+
+
+
+            
+
+
+
+
+
+
+
+def IntentionGen():
     n_map = 200
     for seed in range(n_map):
         point_n_rng = np.random.default_rng(seed+n_map)
@@ -104,4 +184,20 @@ if __name__ == '__main__':
                 ax.plot([x[0] for x in path], [x[1] for x in path], 'r')
 
             map.plot()
+
+
+
+if __name__ == '__main__':
+    dir = "data"
+    seed = 0
+    batch_size = 2
+    n_robot = 3
+    n_task = 3
+    n_obstacle = 2
+    n_x = 100
+    n_y = 100
+    resolution_x = 0.1
+    resolution_y = 0.1
+    AllocationGen(dir, seed, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y)
+
             

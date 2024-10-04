@@ -67,10 +67,12 @@ class AStarPlanner():
                 x = node.x + i
                 y = node.y + j
                 if self._is_valid_node(x, y):
-                    #TODO: consider resolution
-                    distance = 1
-                    if i != 0 and j != 0:
-                        distance = np.sqrt(2)
+                    # consider resolution
+                    distance = np.sqrt(self.resolution_x**2+self.resolution_y**2)
+                    if i !=0 and j == 0:
+                        distance = self.resolution_x
+                    elif i == 0 and j != 0:
+                        distance = self.resolution_y
                     neighbors.append((x, y, distance))
         return neighbors
 
@@ -140,7 +142,7 @@ if __name__ == '__main__':
     grid_map[20:80, 20:80] = 1
     grid_map[10:40, 25:75] = 0
     grid_map[60:90, 25:75] = 0
-    astar_planner = AStarPlanner(grid_map,1,1)
+    astar_planner = AStarPlanner(grid_map,0.1,0.1)
     path, dis = astar_planner.plan((30, 48), (70, 50))
     img = 255-grid_map*255
     img = img.transpose()
