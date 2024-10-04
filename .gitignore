@@ -2,3 +2,6 @@ __pycache__/
 intention_data/
 model_save/
 data/
+*.npy
+*.csv
+*.json
