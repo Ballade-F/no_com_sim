@@ -10,22 +10,43 @@ from task_allocation import hungarian
 import time as TM
 
 
-def AllocationGen(dir, seed, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y):
-
-    rng = np.random.default_rng(seed)
-
+def AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, seed=0, n_x=100, n_y=100, resolution_x=0.1, resolution_y=0.1):
     dataset_info = {
-        "time": TM.strftime("%Y-%m-%d", TM.localtime()),
-        "batch_size": batch_size
-    }
+        "time": TM.strftime("%Y-%m-%d %H:%M", TM.localtime()),
+        "n_batch": n_batch,
+        "batch_size": batch_size,
+        "seed": seed,
+        "n_robot_min": n_robot_min,
+        "n_robot_max": n_robot_max,
+        "n_task_min": n_task_min,
+        "n_task_max": n_task_max,
+        "n_obstacle_min": n_obstacle_min,
+        "n_obstacle_max": n_obstacle_max,
+        "n_x": n_x,
+        "n_y": n_y,
+        "resolution_x": resolution_x,
+        "resolution_y": resolution_y
+        }
     with open(os.path.join(dir, "dataset_info.json"), "w") as json_file:
         json.dump(dataset_info, json_file, indent=4)
 
-    dir_name = os.path.join(dir, f"batch_{seed}")
-    os.makedirs(dir_name, exist_ok=True)
+    rng = np.random.default_rng(seed)
+
+    for i in range(n_batch):
+        dir_name = os.path.join(dir, f"batch_{i}")
+        os.makedirs(dir_name, exist_ok=True)
+        n_robot = int(rng.integers(n_robot_min, n_robot_max+1))
+        n_task = int(rng.integers(n_task_min, n_task_max+1))
+        n_obstacle = int(rng.integers(n_obstacle_min, n_obstacle_max+1))
+        allocationBatchGen(dir_name, rng, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y)
+
+
+
+
+
+def allocationBatchGen(dir_name, rng:np.random.Generator , batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y):
     # Save map information to a JSON file
     batch_info = {
-        "seed": seed,
         "batch_size": batch_size,
         "n_robot": n_robot,
         "n_task": n_task,
@@ -56,11 +77,8 @@ def AllocationGen(dir, seed, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, 
                 # 对称矩阵
                 costmat[k, j] = costmat[j, k]
 
-        # Save cost matrix to a CSV file
-        with open(os.path.join(dir_name_map, f"costmat.csv"), "w", newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            for row in costmat:
-                writer.writerow(row)
+        # Save cost matrix to a npy file
+        np.save(os.path.join(dir_name_map, "costmat.npy"), costmat)
 
         # Save map information to a csv file
         with open(os.path.join(dir_name_map, f"info.csv"), "w", newline='') as csv_file:
@@ -74,9 +92,9 @@ def AllocationGen(dir, seed, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, 
                 for point in ob:
                     writer.writerow([ob_idx+1, point[0], point[1]])
 
-        #plot the map
-        if i == batch_size-1:
-            map.plot()
+        # # plot the map
+        # if i == batch_size-1:
+        #     map.plot()
             
 
 
@@ -189,15 +207,19 @@ def IntentionGen():
 
 if __name__ == '__main__':
     dir = "data"
+    n_batch = 10
+    batch_size = 4
+    n_robot_min = 3
+    n_robot_max = 5
+    n_task_min = 5
+    n_task_max = 8
+    n_obstacle_min = 0
+    n_obstacle_max = 2
     seed = 0
-    batch_size = 2
-    n_robot = 3
-    n_task = 3
-    n_obstacle = 2
     n_x = 100
     n_y = 100
     resolution_x = 0.1
     resolution_y = 0.1
-    AllocationGen(dir, seed, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y)
+    AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, seed, n_x, n_y, resolution_x, resolution_y)
 
             

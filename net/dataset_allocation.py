@@ -10,36 +10,70 @@ from pnc.path_planner import AStarPlanner
 
 
 class batchData():
-    def __init__(self, map, n_robot, n_task, n_obstacle):
-        self.map = map
-        self.n_robot = n_robot
-        self.n_task = n_task
-        self.n_obstacle = n_obstacle
-        self.costmats = np.zeros((n_robot+n_task, n_robot+n_task))
-        self.maps = []
-        for i in range(n_robot+n_task):
-            self.maps.append(map.deepcopy())
-        self.costmats = self.calCostmat()
+    def __init__(self, dir):
+        batch_info = os.path.join(dir, "batch_info.json")
+        with open(batch_info, "r") as f:
+            self.batch_info = json.load(f)
+        self.n_robot = self.batch_info["n_robot"]
+        self.n_task = self.batch_info["n_task"]
+        self.n_obstacle = self.batch_info["n_obstacle"]
+        self.batch_size = self.batch_info["batch_size"]
+
+        self.feature_robot = np.full((self.batch_size, self.n_robot, 3),-1, dtype=float)
+        self.feature_task = np.full((self.batch_size, self.n_task, 3),-1, dtype=float) 
+        self.feature_obstacle = np.full((self.batch_size, self.n_obstacle, mp.n_ob_points, 2),-1, dtype=float)
+        self.costmats = np.full((self.batch_size, self.n_robot+self.n_task, self.n_robot+self.n_task),-1, dtype=float)
+
+        for i in range(self.batch_size):
+            map_dir = os.path.join(dir, f"map_{i}")
+            costmat = np.load(os.path.join(map_dir, "costmat.npy"))
+            self.costmats[i,:,:] = costmat
+            with open(os.path.join(map_dir, "info.csv"), "r") as f:
+                reader = csv.reader(f)
+                for idx, row in enumerate(reader):
+                    #表头
+                    if idx == 0:
+                        continue
+                    if idx <= self.n_robot:
+                        self.feature_robot[i,idx-1,:2] = row[1:]
+                        self.feature_robot[i,idx-1,2] = row[0]
+                    elif idx <= self.n_robot+self.n_task:
+                        self.feature_task[i,idx-self.n_robot-1,:2] = row[1:]
+                        self.feature_task[i,idx-self.n_robot-1,2] = row[0]
+                    else:
+                        idx_ob = int(row[0])-1
+                        idx_point = (idx-self.n_robot-self.n_task-1)-idx_ob*mp.n_ob_points
+                        self.feature_obstacle[i, idx_ob, idx_point,:] = row[1:]
+
+            
+
+        
             
         
         
 
 #出于批量训练的考虑，一个batch中的规模是固定的
 class AllocationDataset(Dataset):
-    def __init__(self, map_dirs, n_batch):
+    def __init__(self, dataset_dir, n_batch):
         super(AllocationDataset, self).__init__()
-        #读取batch信息json文件
-        batch_info = os.path.join(map_dirs, "batch_info.json")
-        with open(batch_info, "r") as f:
-            self.batch_info = json.load(f)
-        self.batch_size = self.batch_info["batch_size"]
+
+        #读取batch_size信息json文件
+        dataset_info = os.path.join(dataset_dir, "dataset_info.json")
+        with open(dataset_info, "r") as f:
+            self.dataset_info = json.load(f)
+
+        self.batch_size = self.dataset_info["batch_size"]
+        n_batch_max = self.dataset_info["n_batch"]
+        if n_batch > n_batch_max:
+            raise ValueError("n_batch exceeds the maximum value")
 
         #读取各个batch
-
-
-        
+        self.batchs = []
+        self.n_batch = n_batch
+        for i in range(n_batch):
+            dir = os.path.join(dataset_dir, f"batch_{i}")
+            self.batchs.append(batchData(dir))
             
-
 
     def __len__(self):
         return self.n_batch
@@ -47,36 +81,15 @@ class AllocationDataset(Dataset):
     def __getitem__(self, idx):
         if idx >= self.n_batch:
             raise IndexError("Index out of range")
-        robot_feature = np.zeros((self.batch_size, self.batchs[idx].n_robot, 3)) # x,y,node_flag 0:robot 1:task -1:obstacle
-        task_feature = np.zeros((self.batch_size, self.batchs[idx].n_task, 3))
-        obstacle_feature = np.zeros((self.batch_size, self.batchs[idx].n_obstacle, mp.n_ob_points, 2))
-        costmat = self.batchs[idx].costmats
-        for i in range(self.batch_size):
-            map = self.batchs[idx].maps[i]
-            robot_feature[i,:,:2] = map.starts_grid
-            task_feature[i,:,:2] = map.tasks_grid
-            robot_feature[i,:,2] = 0
-            task_feature[i,:,2] = 1
-            for j in range(map.n_obstacles):
-                obstacle_feature[i,j,:,:] = map.obstacles[j]
-        return robot_feature, task_feature, obstacle_feature, costmat
-    
+        feature_robot = torch.from_numpy(self.batchs[idx].feature_robot).float()
+        feature_task = torch.from_numpy(self.batchs[idx].feature_task).float()
+        feature_obstacle = torch.from_numpy(self.batchs[idx].feature_obstacle).float()
+        costmat = torch.from_numpy(self.batchs[idx].costmats).float()
+        return feature_robot, feature_task, feature_obstacle, costmat
 
 
 if __name__ == '__main__':
-    dataset = AllocationDataset(2, 2, 0)
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
-    for i, data in enumerate(dataloader):
-        robot_feature, task_feature, obstacle_feature, costmat = data
-        print(robot_feature)
-        print(task_feature)
-        print(obstacle_feature)
-        print(costmat)
-        print("batch", i)
-        print("robot_feature", robot_feature.shape)
-        print("task_feature", task_feature.shape)
-        print("obstacle_feature", obstacle_feature.shape)
-        print("costmat", costmat.shape)
+    pass
 
     
 
