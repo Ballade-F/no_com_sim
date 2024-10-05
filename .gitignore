@@ -1,6 +1,7 @@
 __pycache__/
 intention_data/
 model_save/
+.vscode/
 data/
 *.npy
 *.csv

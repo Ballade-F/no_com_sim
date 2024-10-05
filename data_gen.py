@@ -11,6 +11,7 @@ import time as TM
 
 
 def AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, seed=0, n_x=100, n_y=100, resolution_x=0.1, resolution_y=0.1):
+    os.makedirs(dir, exist_ok=True)
     dataset_info = {
         "time": TM.strftime("%Y-%m-%d %H:%M", TM.localtime()),
         "n_batch": n_batch,
