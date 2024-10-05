@@ -8,9 +8,16 @@ import utils.map as mp
 import pnc.path_planner as path_planner
 from task_allocation import hungarian
 import time as TM
+from concurrent.futures import ProcessPoolExecutor
 
+def generate_batch(dir_name, rng_seed, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, ob_points, n_x, n_y, resolution_x, resolution_y):
+    rng = np.random.default_rng(rng_seed)
+    n_robot = int(rng.integers(n_robot_min, n_robot_max + 1))
+    n_task = int(rng.integers(n_task_min, n_task_max + 1))
+    n_obstacle = int(rng.integers(n_obstacle_min, n_obstacle_max + 1))
+    allocationBatchGen(dir_name, rng, batch_size, n_robot, n_task, n_obstacle, ob_points, n_x, n_y, resolution_x, resolution_y)
 
-def AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, seed=0, n_x=100, n_y=100, resolution_x=0.1, resolution_y=0.1):
+def AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, ob_points, seed=0, n_x=100, n_y=100, resolution_x=0.1, resolution_y=0.1, n_workers=4):
     os.makedirs(dir, exist_ok=True)
     dataset_info = {
         "time": TM.strftime("%Y-%m-%d %H:%M", TM.localtime()),
@@ -23,35 +30,72 @@ def AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_t
         "n_task_max": n_task_max,
         "n_obstacle_min": n_obstacle_min,
         "n_obstacle_max": n_obstacle_max,
+        "ob_points": ob_points,
         "n_x": n_x,
         "n_y": n_y,
         "resolution_x": resolution_x,
         "resolution_y": resolution_y
-        }
+    }
     with open(os.path.join(dir, "dataset_info.json"), "w") as json_file:
         json.dump(dataset_info, json_file, indent=4)
 
     rng = np.random.default_rng(seed)
 
-    for i in range(n_batch):
-        dir_name = os.path.join(dir, f"batch_{i}")
-        os.makedirs(dir_name, exist_ok=True)
-        n_robot = int(rng.integers(n_robot_min, n_robot_max+1))
-        n_task = int(rng.integers(n_task_min, n_task_max+1))
-        n_obstacle = int(rng.integers(n_obstacle_min, n_obstacle_max+1))
-        allocationBatchGen(dir_name, rng, batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y)
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = []
+        for i in range(n_batch):
+            dir_name = os.path.join(dir, f"batch_{i}")
+            os.makedirs(dir_name, exist_ok=True)
+            rng_seed = rng.integers(0, 1e9)  # 为每个进程生成一个独立的随机种子
+            futures.append(executor.submit(generate_batch, dir_name, rng_seed, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, ob_points, n_x, n_y, resolution_x, resolution_y))
+        
+        for future in futures:
+            future.result()  # 等待所有进程完成
+
+# def AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max,ob_points, seed=0, n_x=100, n_y=100, resolution_x=0.1, resolution_y=0.1):
+#     os.makedirs(dir, exist_ok=True)
+#     dataset_info = {
+#         "time": TM.strftime("%Y-%m-%d %H:%M", TM.localtime()),
+#         "n_batch": n_batch,
+#         "batch_size": batch_size,
+#         "seed": seed,
+#         "n_robot_min": n_robot_min,
+#         "n_robot_max": n_robot_max,
+#         "n_task_min": n_task_min,
+#         "n_task_max": n_task_max,
+#         "n_obstacle_min": n_obstacle_min,
+#         "n_obstacle_max": n_obstacle_max,
+#         "ob_points": ob_points,
+#         "n_x": n_x,
+#         "n_y": n_y,
+#         "resolution_x": resolution_x,
+#         "resolution_y": resolution_y
+#         }
+#     with open(os.path.join(dir, "dataset_info.json"), "w") as json_file:
+#         json.dump(dataset_info, json_file, indent=4)
+
+#     rng = np.random.default_rng(seed)
+
+#     for i in range(n_batch):
+#         dir_name = os.path.join(dir, f"batch_{i}")
+#         os.makedirs(dir_name, exist_ok=True)
+#         n_robot = int(rng.integers(n_robot_min, n_robot_max+1))
+#         n_task = int(rng.integers(n_task_min, n_task_max+1))
+#         n_obstacle = int(rng.integers(n_obstacle_min, n_obstacle_max+1))
+#         allocationBatchGen(dir_name, rng, batch_size, n_robot, n_task, n_obstacle,ob_points, n_x, n_y, resolution_x, resolution_y)
 
 
 
 
 
-def allocationBatchGen(dir_name, rng:np.random.Generator , batch_size, n_robot, n_task, n_obstacle, n_x, n_y, resolution_x, resolution_y):
+def allocationBatchGen(dir_name, rng:np.random.Generator , batch_size, n_robot, n_task, n_obstacle,ob_points, n_x, n_y, resolution_x, resolution_y):
     # Save map information to a JSON file
     batch_info = {
         "batch_size": batch_size,
         "n_robot": n_robot,
         "n_task": n_task,
         "n_obstacle": n_obstacle,
+        "ob_points": ob_points,
         "n_x": n_x,
         "n_y": n_y,
         "resolution_x": resolution_x,
@@ -221,6 +265,9 @@ if __name__ == '__main__':
     n_y = 100
     resolution_x = 0.1
     resolution_y = 0.1
-    AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, n_obstacle_min, n_obstacle_max, seed, n_x, n_y, resolution_x, resolution_y)
+    ob_points = mp.n_ob_points
+    n_workers = 4
+    AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max,
+                          n_obstacle_min, n_obstacle_max,ob_points, seed, n_x, n_y, resolution_x, resolution_y,n_workers)
 
             

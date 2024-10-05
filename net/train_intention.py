@@ -4,7 +4,7 @@ import time
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from intention_judgment import IntentionNet
+from net.intention import IntentionNet
 from dataset_intention import IntentionDataset
 
 if torch.cuda.is_available():

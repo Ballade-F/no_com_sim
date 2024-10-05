@@ -3,180 +3,199 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
+from module import Self_Attention, Self_Cross_Attention
 
 
-if torch.cuda.is_available():
-    DEVICE = torch.device('cuda')
-else:
-    DEVICE = torch.device('cpu')
-# DEVICE = torch.device('cpu')
+#输入输出[batch, n_points, embedding_size]
+class _attentionBlock(nn.Module):
+    def __init__(self, embedding_size:int,attention_head:int):
+        super(_attentionBlock, self).__init__()
+        if embedding_size % attention_head != 0 :
+            raise ValueError("embedding_size must be divisible by attention_head")
+        
+        self.local_attention = Self_Attention(embedding_size, attention_head)
+        self.bn1 = nn.BatchNorm1d(embedding_size)
+        self.bn2 = nn.BatchNorm1d(embedding_size)
+        self.ffc1 = nn.Linear(embedding_size, embedding_size)
+        self.ffc2 = nn.Linear(embedding_size, embedding_size)
 
+    def forward(self, x):
+        x = self.local_attention(x)
+        x = self.bn1(x.permute(0, 2, 1)).permute(0, 2, 1)
+        x1 = self.ffc1(x)
+        x1 = F.relu(x1)
+        x1 = self.ffc2(x1)
+        x = x1 + x
+        x = self.bn2(x.permute(0, 2, 1)).permute(0, 2, 1)
+        return x
+    
 
-#网络超参数
-embeddingSize = 256 # 节点的嵌入维度
-nodeSize = 21  # 节点总数
-agentSize = 3  # 车辆数
-# batch = 128  # batch size
-batch = 512 # batch size
-M:int = 8  # 多头注意力中的头数
-dk:int = embeddingSize / M  # 多头注意力中每一头的维度
-isTrain = True  # 是否训练
-C = 10  # 做softmax得到选取每个点概率前，clip the result所使用的参数
+# #输入[batch, n_obstacle, ob_points, 2]，输出[batch, n_obstacle, embedding_size]
+# class localEmbed(nn.Module):
+#     def __init__(self, input_size:int, embedding_size:int,attention_head:int, ob_points:int,local_embed_layers:int=2):
+#         super(localEmbed, self).__init__()
+#         if embedding_size % attention_head != 0 :
+#             raise ValueError("embedding_size must be divisible by attention_head")
+#         self.embedding_size = embedding_size
+#         self.ob_points = ob_points
+#         self.attention_head = attention_head
+#         self.local_embed_layers = local_embed_layers
 
-class ActNet(nn.Module):
-    def __init__(self, embedding_size:int=embeddingSize, node_size:int=nodeSize,agent_size:int = agentSize, batch:int=batch, m:int=M, dk:int=dk, feature_dim:int=3):
-        super(ActNet, self).__init__()
+#         self.embedding_obstacle = nn.Linear(input_size, embedding_size)
+
+#         self.local_embed_layers = nn.ModuleList([
+#             Self_Attention(embedding_size, attention_head)
+#             for _ in range(local_embed_layers)
+#         ])
+
+        
+#     # x: (batch, n_obstacle, ob_points, 2)
+#     def forward(self, x):
+#         x = self.embedding_obstacle(x) #(batch, n_obstacle, ob_points, embedding_size)
+#         for layer in self.local_embed_layers:
+#             x = layer(x)
+#         x = torch.mean(x, dim=2) #(batch, n_obstacle,ob_points, embedding_size) -> (batch, n_obstacle, embedding_size)
+#         return x
+    
+
+# #输入[batch, n_robot+n_task, 3]，[batch, n_obstacle, ob_points, 2]，输出[batch, n_robot+n_task, embedding_size]
+# class _encoderBlock(nn.Module):
+#     def __init__(self, robot_n:int,task_n:int, ob_n:int, ob_points:int,
+#                  embedding_size:int, batch_size:int, attention_head:int):
+#         super(_encoderBlock, self).__init__()
+
+#         self.robot_n = robot_n
+#         self.task_n = task_n 
+#         self.ob_n = ob_n
+#         self.ob_points = ob_points
+#         self.embedding_size = embedding_size
+#         self.attention_head = attention_head
+#         self.batch_size = batch_size
+
+# 输入[batch, n_robot, 3]，[batch, n_robot, 3]，[batch, n_obstacle, ob_points, 2]
+class AllocationNet(nn.Module):
+    def __init__(self, robot_n:int, task_n:int, ob_n:int, ob_points:int,
+                 embedding_size:int, batch_size:int, attention_head:int,
+                 rt_dim:int = 3, ob_dim:int = 2, C:float = 10.0,
+                 encoder_layer:int = 3, local_embed_layers:int=2, device='cpu'):
+        super(AllocationNet, self).__init__()
+        if embedding_size % attention_head != 0 :
+            raise ValueError("embedding_size must be divisible by attention_head")
+        self.robot_n = robot_n
+        self.task_n = task_n
+        self.ob_n = ob_n
+        self.rt_n = robot_n + task_n
+        self.global_points_n = robot_n + task_n + ob_n
+        self.ob_points = ob_points
         self.embedding_size = embedding_size
-        self.node_size = node_size
-        self.agent_size = agent_size
-        self.batch = batch
-        self.M = M
-        self.dk = int(dk)
-        self.feature_dim = feature_dim
+        self.batch_size = batch_size
+        self.attention_head = attention_head
+        self.dk = int(embedding_size / attention_head)
+        self.rt_dim = rt_dim
+        self.ob_dim = ob_dim
+        self.C = C
+        self.encoder_layer = encoder_layer
+        self.local_embed_layers = local_embed_layers
+        self.device = device
 
-        # 嵌入层
-        self.embedding = nn.Linear(self.feature_dim, embedding_size)
+        # 嵌入
+        self.embedding_rt = nn.Linear(rt_dim, embedding_size)
+        self.embedding_ob = nn.Linear(ob_dim, embedding_size)
 
         # encoder
-        self.wq1 = nn.Linear(embedding_size, embedding_size)
-        self.wk1 = nn.Linear(embedding_size, embedding_size)
-        self.wv1 = nn.Linear(embedding_size, embedding_size)
-        self.w1 = nn.Linear(embedding_size, embedding_size)
-        self.ffc11 = nn.Linear(embedding_size, embedding_size)
-        self.ffc12 = nn.Linear(embedding_size, embedding_size)
-        self.bn11 = nn.BatchNorm1d(embedding_size)
-        self.bn12 = nn.BatchNorm1d(embedding_size)
+        # local embedding
+        self.local_encoder_layers = nn.ModuleList([
+            _attentionBlock(embedding_size, attention_head)
+            for _ in range(local_embed_layers)
+        ])
+        # global encoding
+        self.encoder_layers = nn.ModuleList([
+            _attentionBlock(embedding_size, attention_head)
+            for _ in range(encoder_layer)
+        ])
 
-        self.wq2 = nn.Linear(embedding_size, embedding_size)
-        self.wk2 = nn.Linear(embedding_size, embedding_size)
-        self.wv2 = nn.Linear(embedding_size, embedding_size)
-        self.w2 = nn.Linear(embedding_size, embedding_size)
-        self.ffc21 = nn.Linear(embedding_size, embedding_size)
-        self.ffc22 = nn.Linear(embedding_size, embedding_size)
-        self.bn21 = nn.BatchNorm1d(embedding_size)
-        self.bn22 = nn.BatchNorm1d(embedding_size)
+        #decoder
+        self.dc_wq = nn.Linear(2*embedding_size, embedding_size)
+        self.dc_wk = nn.Linear(embedding_size, embedding_size)
+        self.dc_wv = nn.Linear(embedding_size, embedding_size)
+        self.dc_w = nn.Linear(embedding_size, embedding_size)
 
-        self.wq3 = nn.Linear(embedding_size, embedding_size)
-        self.wk3 = nn.Linear(embedding_size, embedding_size)
-        self.wv3 = nn.Linear(embedding_size, embedding_size)
-        self.w3 = nn.Linear(embedding_size, embedding_size)
-        self.ffc31 = nn.Linear(embedding_size, embedding_size)
-        self.ffc32 = nn.Linear(embedding_size, embedding_size)
-        self.bn31 = nn.BatchNorm1d(embedding_size)
-        self.bn32 = nn.BatchNorm1d(embedding_size)
-
-        # decoder
-        self.wq4 = nn.Linear(embedding_size*2, embedding_size)
-        self.wk4 = nn.Linear(embedding_size, embedding_size)
-        self.wv4 = nn.Linear(embedding_size, embedding_size)
-        self.w4 = nn.Linear(embedding_size, embedding_size)
-        # 输出层
-        self.wq5 = nn.Linear(embedding_size, embedding_size)
-        self.wk5 = nn.Linear(embedding_size, embedding_size)
+        #输出层
+        self.out_wq = nn.Linear(embedding_size, embedding_size)
+        self.out_wk = nn.Linear(embedding_size, embedding_size)
 
 
-    def forward(self, x_, is_train):
-        s1 = torch.unsqueeze(x_, dim=1)
-        s1 = s1.expand(self.batch, self.node_size, self.node_size, self.feature_dim)
-        s2 = torch.unsqueeze(x_, dim=2)
-        s2 = s2.expand(self.batch, self.node_size, self.node_size, self.feature_dim)
-        ss = s1 - s2
-        ss = ss[:,:,:,0:2]
-        dis = torch.norm(ss, 2, dim=3, keepdim=True)  # dis表示任意两点间的距离 (batch, node_size, node_size, 1)
-        dis[:,:,0:self.agent_size,:] = 0
+#x_r: (batch, n_robot, 3), x_t: (batch, n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2), costmap: (batch, n_robot+n_task, n_robot+n_task)
+    def forward(self, x_r, x_t, x_ob, costmap, is_train):
+        x_rt = torch.cat((x_r, x_t), dim=1)
         # 嵌入层
-        x = self.embedding(x_)#(batch, node_size, embedding_size)
-        # encoder
-        # 第一层
-        x = self.attention(x, self.wq1, self.wk1, self.wv1, self.w1, add_residual=True)
-        x = self.bn11(x.permute(0, 2, 1)).permute(0, 2, 1)#BatchNorm1d对二维中的最后一维，或三维中的中间一维进行归一化
-        x1 = self.ffc11(x)
-        x1 = F.relu(x1)
-        x1 = self.ffc12(x1)
-        x = x1 + x
-        x = self.bn12(x.permute(0, 2, 1)).permute(0, 2, 1)
-        # 第二层
-        x = self.attention(x, self.wq2, self.wk2, self.wv2, self.w2, add_residual=True)
-        x = self.bn21(x.permute(0, 2, 1)).permute(0, 2, 1)
-        x1 = self.ffc21(x)
-        x1 = F.relu(x1)
-        x1 = self.ffc22(x1)
-        x = x1 + x
-        x = self.bn22(x.permute(0, 2, 1)).permute(0, 2, 1)
-        # 第三层
-        x = self.attention(x, self.wq3, self.wk3, self.wv3, self.w3, add_residual=True)
-        x = self.bn31(x.permute(0, 2, 1)).permute(0, 2, 1)
-        x1 = self.ffc31(x)
-        x1 = F.relu(x1)
-        x1 = self.ffc32(x1)
-        x = x1 + x
-        x = self.bn32(x.permute(0, 2, 1)).permute(0, 2, 1)
+        x_rt = self.embedding_rt(x_rt)
+        x_ob = self.embedding_ob(x_ob)
+        # local embedding
+        for layer in self.local_encoder_layers:
+            x_ob = layer(x_ob)
+        x_ob = torch.mean(x_ob, dim=2)
+        # global encoding
+        x = torch.cat((x_rt, x_ob), dim=1)
+        for layer in self.encoder_layers:
+            x = layer(x)
+        x_rt = x[:, :self.rt_n, :]
+        ave_x_rt = torch.mean(x_rt, dim=1)
 
-        #(batch, node_size, embedding_size) -> (batch, embedding_size)
-        ave = torch.mean(x, dim=1)
+        #decoder
+        idx = torch.zeros(self.batch_size,dtype=torch.long).to(self.device)  # 当前车辆所在的点
+        idx_last = torch.zeros(self.batch_size,dtype=torch.long).to(self.device)  # 上一个车辆所在的点
+        mask = torch.zeros(self.batch_size, self.rt_n,dtype=torch.bool).to(self.device)
+        pro = torch.FloatTensor(self.batch_size, self.rt_n-1).to(self.device)  # 每个点被选取时的选取概率，将其连乘可得到选取整个路径的概率
+        distance = torch.zeros(self.batch_size).to(self.device)  # 总距离
+        seq = torch.zeros(self.batch_size, self.rt_n-1).to(self.device)  # 选择的路径序列
 
-        # decoder
-
-        idx = torch.zeros(self.batch,dtype=torch.long).to(DEVICE)  # 当前车辆所在的点
-        idx_last = torch.zeros(self.batch,dtype=torch.long).to(DEVICE)  # 上一个车辆所在的点
-        mask = torch.zeros(self.batch, self.node_size,dtype=torch.bool).to(DEVICE)
-        pro = torch.FloatTensor(self.batch, self.node_size-1).to(DEVICE)  # 每个点被选取时的选取概率,将其连乘可得到选取整个路径的概率
-        distance = torch.zeros(self.batch).to(DEVICE)  # 总距离
-        seq = torch.zeros(self.batch, self.node_size-1).to(DEVICE)  # 选择的路径序列
-        for i in range(self.node_size-1):
-            #退出条件
-            # if i == self.node_size - 1:
-            #     break
-            mask_temp = torch.zeros(self.batch, self.node_size,dtype=torch.bool).to(DEVICE)
-            mask_temp[torch.arange(self.batch), idx_last] = 1 
-            mask = mask | mask_temp
-            # for j in range(self.batch):
-            #     mask[j, idx_last[j]] = 1
-            mask_ = mask.unsqueeze(1)#(batch, 1, node_size)
-            mask_ = mask_.expand(self.batch, self.M, self.node_size)
-            mask_ = mask_.unsqueeze(2)#(batch, M, 1, node_size)
-                
-            # now = x[:, idx, :]
-            now = x[torch.arange(self.batch), idx, :]
-            graph_info = torch.cat([ave, now], dim=1)#(batch, 2*embedding_size)
-            q = self.wq4(graph_info)
-            k = self.wk4(x)
-            v = self.wv4(x)
-            q = q.contiguous().view(self.batch, 1, self.M, self.dk)
-            k = k.contiguous().view(self.batch, self.node_size, self.M, self.dk)
-            v = v.contiguous().view(self.batch, self.node_size, self.M, self.dk)
-            q = q.permute(0, 2, 1, 3)#(batch, M, 1, dk)
-            k = k.permute(0, 2, 3, 1)#(batch, M, dk, node_size)
-            v = v.permute(0, 2, 1, 3)#(batch, M, node_size, dk)
-            qk = torch.matmul(q, k) / (self.dk ** 0.5)#(batch, M, 1, node_size)
+        for i in range(self.rt_n-1):
             #mask
-            qk.masked_fill_(mask_, -float('inf'))
-            qk = F.softmax(qk, dim=-1)#(batch, M, 1, node_size)
-            z = torch.matmul(qk, v)#(batch, M, 1, dk)
-            z = z.permute(0, 2, 1, 3)#(batch, 1, M, dk)
-            z = z.contiguous().view(self.batch, 1, self.embedding_size)
-            z = self.w4(z)#(batch, 1, embedding_size)
+            mask[torch.arange(self.batch_size),idx] = True
+            mask_ = mask.unsqueeze(1).expand(self.batch_size,self.attention_head,self.rt_n)
+            mask_ = mask_.unsqueeze(2)
+
+            now_point = x_rt[torch.arange(self.batch_size),idx,:]#(batch,embedding_size)
+            graph_info = torch.cat((now_point,ave_x_rt),dim=1)#(batch,2*embedding_size)
+            q = self.dc_wq(graph_info)
+            k = self.dc_wk(x_rt)
+            v = self.dc_wv(x_rt)
+            q = q.reshape(self.batch_size,1,self.attention_head,self.dk)
+            k = k.reshape(self.batch_size,self.rt_n, self.attention_head, self.dk)
+            v = v.reshape(self.batch_size,self.rt_n, self.attention_head, self.dk)
+            q = q.permute(0, 2, 1, 3)
+            k = k.permute(0, 2, 3, 1)
+            v = v.permute(0, 2, 1, 3)
+            qk = torch.matmul(q, k) / (self.dk ** 0.5)
+            #mask
+            qk.masked_fill_(mask_,-float('inf'))
+            qk = F.softmax(qk, dim=-1) #(batch, attention_head, 1, n_rt)
+            z = torch.matmul(qk, v) #(batch, attention_head, 1, dk)
+            z = z.permute(0, 2, 1, 3) #(batch, 1, attention_head, dk)
+            z = z.reshape(self.batch_size, 1, self.embedding_size)
+            z = self.dc_w(z) #(batch, 1, embedding_size)
 
             #输出概率
-            q = self.wq5(z)#(batch, 1, embedding_size)
-            k = self.wk5(x)#(batch, node_size, embedding_size)
-            k = k.permute(0, 2, 1)#(batch, embedding_size, node_size)
-            qk = torch.matmul(q, k) / (self.dk ** 0.5)#(batch, 1, node_size)
-            qk = qk.sum(dim=1)#(batch, node_size)
-            qk = torch.tanh(qk)*C#TODO: c待查
-            qk.masked_fill_(mask, -float('inf'))
-            p = F.softmax(qk, dim=-1)#(batch, node_size)
+            q_out = self.out_wq(z) #(batch, 1, embedding_size)
+            k_out = self.out_wk(x_rt)
+            k_out = k_out.permute(0, 2, 1)#(batch, embedding_size, n_rt)
+            qk_out = torch.matmul(q_out, k_out) / (self.embedding_size ** 0.5)
+            qk_out = qk_out.sum(dim=1) #(batch, n_rt)
+            qk_out = torch.tanh(qk_out)*self.C
+            qk_out.masked_fill_(mask,-float('inf'))
+            p = F.softmax(qk_out, dim=-1)
 
             if is_train:
-                idx = torch.multinomial(p, 1)[:, 0]#(batch, 1) ->[:,0]->(batch)
+                idx = torch.multinomial(p,1).squeeze()
             else:
-                idx = torch.argmax(p, dim=1)#(batch, node_size) ->(batch)
+                idx = torch.argmax(p,dim=1)
 
-            pro[:,i] = p[torch.arange(self.batch), idx]
-            distance = distance + dis[torch.arange(self.batch), idx_last, idx].squeeze()
-
+            #计算距离
+            pro[:,i] = p[torch.arange(self.batch_size),idx]
+            seq[:,i] = idx
+            distance = distance + costmap[torch.arange(self.batch_size),idx_last,idx] #索引为列表时，返回的是列表对应位置的元素组成的列表
             idx_last = idx
-            seq[:, i] = idx.squeeze()
 
         if is_train==False:
             seq = seq.detach()
@@ -185,48 +204,19 @@ class ActNet(nn.Module):
         
         return seq, pro, distance
 
+        
 
+#TODO: finish cfg
+    def config(self,cfg):
+        self.robot_n = cfg.robot_n
+        self.task_n = cfg.task_n
+        self.ob_n = cfg.ob_n
+        self.rt_n = cfg.robot_n + cfg.task_n
+        self.global_points_n = cfg.robot_n + cfg.task_n + cfg.ob_n
+        self.ob_points = cfg.ob_points
+        self.batch_size = cfg.batch_size
 
+        
+        
 
-    def attention(self, x, wq, wk, wv, w, add_residual):
-        '''
-        x: (batch, node_size, embedding_size)   
-        wq,wk:nn.Linear(embedding_size, attention_size)     
-        wv:nn.Linear(embedding_size, embedding_size)    
-        w:nn.Linear(embedding_size, embedding_size)     
-        '''
-        q = wq(x)
-        k = wk(x)
-        v = wv(x)
-        q = q.contiguous().view(self.batch, self.node_size, self.M, self.dk)
-        k = k.contiguous().view(self.batch, self.node_size, self.M, self.dk)
-        v = v.contiguous().view(self.batch, self.node_size, self.M, self.dk)
-        q = q.permute(0, 2, 1, 3)#(batch, M, node_size, dk)
-        k = k.permute(0, 2, 3, 1)#(batch, M, dk, node_size)
-        v = v.permute(0, 2, 1, 3)#(batch, M, node_size, dk)
-        qk = torch.matmul(q, k) / (self.dk ** 0.5)#(batch, M, node_size, node_size)
-        qk = F.softmax(qk, dim=-1)
-        z = torch.matmul(qk, v)#(batch, M, node_size, dk)
-        z = z.permute(0, 2, 1, 3)#(batch, node_size, M, dk)
-        z = z.contiguous().view(self.batch, self.node_size, self.embedding_size)
-        z = w(z)
-        if add_residual:
-            z = z + x
-        return z
-
-
-if __name__ == '__main__':
-    act_net = ActNet()
-    act_net = act_net.to(DEVICE)
-    x = torch.rand([batch, nodeSize, 3])
-    x = x.to(DEVICE)
-    seq, pro, distance = act_net(x, isTrain)
-    print(seq)
-    print(pro)
-    print(distance)
-    print(seq.size())
-    print(pro.size())
-    print(distance.size())
-    print(seq.dtype)
-    print(pro.dtype)
-    print(distance.dtype)
+        

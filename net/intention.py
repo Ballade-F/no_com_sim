@@ -3,13 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from local_embed import Self_Attention, Self_Cross_Attention
+from module import Self_Attention, Self_Cross_Attention
 
 
 
-class EncoderBlock(nn.Module):
+class _encoderBlock(nn.Module):
     def __init__(self, embedding_size:int, robot_n:int,task_n:int, batch_size:int, attention_head:int):
-        super(EncoderBlock, self).__init__()
+        super(_encoderBlock, self).__init__()
 
         self.robot_n = robot_n
         self.task_n = task_n + 1 # 最后一个task是虚拟task，用于结束任务的robot
@@ -54,7 +54,7 @@ class IntentionNet(nn.Module):
         # encoder
         # TODO:正则化
         self.encoder_layers = nn.ModuleList([
-            EncoderBlock(embedding_size, 
+            _encoderBlock(embedding_size, 
                          robot_n, 
                          task_n, 
                          batch_size, 
@@ -72,7 +72,6 @@ class IntentionNet(nn.Module):
         x_r = self.embedding_robot(x_r_)
         x_t = self.embedding_task(x_t_)
         # encoder
-        # 第一层
         x = torch.cat((x_r, x_t), dim=1)
         for encoder_layer in self.encoder_layers:
             x = encoder_layer(x)

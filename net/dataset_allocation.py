@@ -4,8 +4,7 @@ import json
 import csv
 import torch
 from torch.utils.data import Dataset, DataLoader
-import utils.map as mp
-from pnc.path_planner import AStarPlanner
+
 
 
 
@@ -18,10 +17,11 @@ class batchData():
         self.n_task = self.batch_info["n_task"]
         self.n_obstacle = self.batch_info["n_obstacle"]
         self.batch_size = self.batch_info["batch_size"]
+        self.ob_points = self.batch_info["ob_points"]
 
         self.feature_robot = np.full((self.batch_size, self.n_robot, 3),-1, dtype=float)
         self.feature_task = np.full((self.batch_size, self.n_task, 3),-1, dtype=float) 
-        self.feature_obstacle = np.full((self.batch_size, self.n_obstacle, mp.n_ob_points, 2),-1, dtype=float)
+        self.feature_obstacle = np.full((self.batch_size, self.n_obstacle, self.ob_points, 2),-1, dtype=float)
         self.costmats = np.full((self.batch_size, self.n_robot+self.n_task, self.n_robot+self.n_task),-1, dtype=float)
 
         for i in range(self.batch_size):
@@ -42,7 +42,7 @@ class batchData():
                         self.feature_task[i,idx-self.n_robot-1,2] = row[0]
                     else:
                         idx_ob = int(row[0])-1
-                        idx_point = (idx-self.n_robot-self.n_task-1)-idx_ob*mp.n_ob_points
+                        idx_point = (idx-self.n_robot-self.n_task-1)-idx_ob*self.ob_points
                         self.feature_obstacle[i, idx_ob, idx_point,:] = row[1:]
 
             
@@ -64,6 +64,7 @@ class AllocationDataset(Dataset):
 
         self.batch_size = self.dataset_info["batch_size"]
         n_batch_max = self.dataset_info["n_batch"]
+        self.ob_points = self.dataset_info["ob_points"]
         if n_batch > n_batch_max:
             raise ValueError("n_batch exceeds the maximum value")
 
@@ -89,7 +90,14 @@ class AllocationDataset(Dataset):
 
 
 if __name__ == '__main__':
-    pass
+    dataset = AllocationDataset("data", 10)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    for i, (feature_robot, feature_task, feature_obstacle, costmat) in enumerate(dataloader):
+        print(feature_robot.shape)
+        print(feature_task.shape)
+        print(feature_obstacle.shape)
+        print(costmat.shape)
+        break
 
     
 
