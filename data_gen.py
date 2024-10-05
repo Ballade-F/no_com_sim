@@ -251,7 +251,7 @@ def IntentionGen():
 
 
 if __name__ == '__main__':
-    dir = "data"
+    dir = "allocation_data"
     n_batch = 10
     batch_size = 4
     n_robot_min = 3

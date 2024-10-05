@@ -86,17 +86,25 @@ class AllocationDataset(Dataset):
         feature_task = torch.from_numpy(self.batchs[idx].feature_task).float()
         feature_obstacle = torch.from_numpy(self.batchs[idx].feature_obstacle).float()
         costmat = torch.from_numpy(self.batchs[idx].costmats).float()
-        return feature_robot, feature_task, feature_obstacle, costmat
+        cfg = {
+            "n_robot": int(self.batchs[idx].n_robot),
+            "n_task": int(self.batchs[idx].n_task),
+            "n_obstacle": int(self.batchs[idx].n_obstacle),
+            "ob_points": int(self.batchs[idx].ob_points),
+            "batch_size": int(self.batchs[idx].batch_size)
+        }
+        return feature_robot, feature_task, feature_obstacle, costmat, cfg
 
 
 if __name__ == '__main__':
-    dataset = AllocationDataset("data", 10)
+    dataset = AllocationDataset("allocation_data", 10)
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-    for i, (feature_robot, feature_task, feature_obstacle, costmat) in enumerate(dataloader):
+    for i, (feature_robot, feature_task, feature_obstacle, costmat,cfg) in enumerate(dataloader):
         print(feature_robot.shape)
         print(feature_task.shape)
         print(feature_obstacle.shape)
         print(costmat.shape)
+        print(cfg)
         break
 
     

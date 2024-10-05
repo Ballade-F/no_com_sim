@@ -1,5 +1,6 @@
 __pycache__/
 intention_data/
+allocation_data/
 model_save/
 .vscode/
 data/

@@ -13,7 +13,7 @@ import task_allocation.greedy_allocation_lib as greedy
 import task_allocation.ga_allocation_lib as ga
 import net.allocation as allocation
 import net.dataset_intention as dataset_intention
-import net.intention_judgment as intention_judgment
+import net.intention as intention
 
 
 class Robot:
@@ -51,7 +51,7 @@ class Robot:
         self.controller = dwa.DWA()
         self.path_planner = path_planner.AStarPlanner(self.map.map, self.map.resolution_x, self.map.resolution_y)
         self.task_allocation = allocation.ActNet()
-        self.intention_judgment = intention_judgment.IntentionNet()
+        self.intention_judgment = intention.IntentionNet()
 
     # 初始化
 

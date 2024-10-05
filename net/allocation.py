@@ -74,18 +74,18 @@ class _attentionBlock(nn.Module):
 
 # 输入[batch, n_robot, 3]，[batch, n_robot, 3]，[batch, n_obstacle, ob_points, 2]
 class AllocationNet(nn.Module):
-    def __init__(self, robot_n:int, task_n:int, ob_n:int, ob_points:int,
+    def __init__(self, ob_points:int,
                  embedding_size:int, batch_size:int, attention_head:int,
                  rt_dim:int = 3, ob_dim:int = 2, C:float = 10.0,
                  encoder_layer:int = 3, local_embed_layers:int=2, device='cpu'):
         super(AllocationNet, self).__init__()
         if embedding_size % attention_head != 0 :
             raise ValueError("embedding_size must be divisible by attention_head")
-        self.robot_n = robot_n
-        self.task_n = task_n
-        self.ob_n = ob_n
-        self.rt_n = robot_n + task_n
-        self.global_points_n = robot_n + task_n + ob_n
+        self.robot_n = -1
+        self.task_n = -1
+        self.ob_n = -1
+        self.rt_n = -1
+        self.global_points_n = -1
         self.ob_points = ob_points
         self.embedding_size = embedding_size
         self.batch_size = batch_size
@@ -129,11 +129,20 @@ class AllocationNet(nn.Module):
     def forward(self, x_r, x_t, x_ob, costmap, is_train):
         x_rt = torch.cat((x_r, x_t), dim=1)
         # 嵌入层
-        x_rt = self.embedding_rt(x_rt)
-        x_ob = self.embedding_ob(x_ob)
+        x_rt = self.embedding_rt(x_rt)#(batch, n_robot+n_task, embedding_size)
+        x_ob = self.embedding_ob(x_ob)#(batch, n_obstacle, ob_points, embedding_size)
+
         # local embedding
-        for layer in self.local_encoder_layers:
-            x_ob = layer(x_ob)
+        if x_ob.shape[1] != 0:
+            #TODO: 改成vectornet的方法，拼接
+            x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
+
+            #debug
+            print(x_ob.shape)
+
+            for layer in self.local_encoder_layers:
+                x_ob = layer(x_ob)
+            x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
         x_ob = torch.mean(x_ob, dim=2)
         # global encoding
         x = torch.cat((x_rt, x_ob), dim=1)
@@ -150,11 +159,17 @@ class AllocationNet(nn.Module):
         distance = torch.zeros(self.batch_size).to(self.device)  # 总距离
         seq = torch.zeros(self.batch_size, self.rt_n-1).to(self.device)  # 选择的路径序列
 
+        #debug
+        print(self.batch_size)
+
         for i in range(self.rt_n-1):
             #mask
-            mask[torch.arange(self.batch_size),idx] = True
-            mask_ = mask.unsqueeze(1).expand(self.batch_size,self.attention_head,self.rt_n)
-            mask_ = mask_.unsqueeze(2)
+            mask_temp = torch.zeros((self.batch_size, self.rt_n),dtype=torch.bool).to(self.device)
+            mask_temp[torch.arange(self.batch_size),idx_last] = 1
+            mask = mask | mask_temp
+            mask_ = mask.unsqueeze(1)#(batch,1,n_rt)
+            mask_ = mask_.expand(self.batch_size,self.attention_head,self.rt_n)
+            mask_ = mask_.unsqueeze(2)#(batch,attention_head,1,n_rt)
 
             now_point = x_rt[torch.arange(self.batch_size),idx,:]#(batch,embedding_size)
             graph_info = torch.cat((now_point,ave_x_rt),dim=1)#(batch,2*embedding_size)
@@ -207,14 +222,14 @@ class AllocationNet(nn.Module):
         
 
 #TODO: finish cfg
-    def config(self,cfg):
-        self.robot_n = cfg.robot_n
-        self.task_n = cfg.task_n
-        self.ob_n = cfg.ob_n
-        self.rt_n = cfg.robot_n + cfg.task_n
-        self.global_points_n = cfg.robot_n + cfg.task_n + cfg.ob_n
-        self.ob_points = cfg.ob_points
-        self.batch_size = cfg.batch_size
+    def config(self,cfg:dict):
+        self.robot_n = int(cfg['n_robot'])
+        self.task_n = int(cfg['n_task'])
+        self.ob_n = int(cfg['n_obstacle'])
+        self.rt_n = self.robot_n + self.task_n
+        self.global_points_n = self.rt_n + self.ob_n
+        self.ob_points = int(cfg['ob_points'])
+        self.batch_size = int(cfg['batch_size'])
 
         
         
