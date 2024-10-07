@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from allocation import AllocationNet
 from dataset_allocation import AllocationDataset
-
+from scipy.stats import ttest_rel
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -19,7 +19,7 @@ def train_allocation_net():
     # configuration
     embedding_size = 128
     attention_head = 8
-    num_epochs = 10
+    num_epochs = 30
     learning_rate = 0.0002
     save_dir = '/home/zj/Desktop/wzr/no_com_sim/net_model/allocation/'
     dataset_dir = "/home/zj/Desktop/wzr/no_com_sim/allocation_data/"
@@ -41,7 +41,7 @@ def train_allocation_net():
 
     # Initialize model, loss function, and optimizer
     model_train = AllocationNet(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
-    # model_target = AllocationNet(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
+    model_target = AllocationNet(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
 
 
     optimizer = optim.Adam(model_train.parameters(), lr=learning_rate)
@@ -58,26 +58,29 @@ def train_allocation_net():
             feature_obstacle = feature_obstacle.squeeze(0)
             costmats = costmats.squeeze(0)
 
-            #debug
-            print(i)
-            print(feature_robot.shape)
-            print(feature_task.shape)
-            print(feature_obstacle.shape)
-            print(costmats.shape)
+            # #debug
+            # print(i)
+            # print(feature_robot.shape)
+            # print(feature_task.shape)
+            # print(feature_obstacle.shape)
+            # print(costmats.shape)
             
 
             # Forward pass
             model_train.config(cfg)
+            model_target.config(cfg)
             seq, pro, distance = model_train(feature_robot, feature_task, feature_obstacle, costmats, is_train=True)
+            seq_target, pro_target, distance_target = model_target(feature_robot, feature_task, feature_obstacle, costmats, is_train=False)#baseline
 
             pro_log = torch.log(pro)#(batch, n-1)
-            pro_sum = torch.sum(pro_log, dim=1) #(batch)
-            dis = distance.detach()
-            loss = dis * pro_sum
+            loss = torch.sum(pro_log, dim=1) #(batch)
+            score = distance-distance_target
+            score = score.detach()
+            loss = score * loss
             loss = torch.sum(loss) / batch_size
 
-            #debug
-            print(loss)
+            # #debug
+            # print(loss)
 
             # Backward pass and optimize
             optimizer.zero_grad()
@@ -85,17 +88,37 @@ def train_allocation_net():
             nn.utils.clip_grad_norm_(model_train.parameters(), 1)
             optimizer.step()
 
-        # Print statistics
-        print(f"Epoch {epoch}, Batch {i}, Loss: {loss.item()}")
-        running_loss = 0.0
+            # OneSidedPairedTTest(做t-检验看当前Sampling的解效果是否显著好于greedy的解效果,如果是则更新使用greedy策略作为baseline的net2参数)
+            if (distance.mean() - distance_target.mean()) < 0:
+                tt, pp = ttest_rel(distance.cpu().numpy(), distance_target.cpu().numpy())
+                p_val = pp / 2
+                assert tt < 0, "T-statistic should be negative"
+                if p_val < bl_alpha:
+                    print('Update baseline')
+                    model_target.load_state_dict(model_train.state_dict())
 
-    # Save model
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    torch.save(model_train.state_dict(), os.path.join(save_dir, "time_{}_dis_.pt".format
-                                                      (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()))))
+            # 每隔xxx步做测试判断结果有没有改进，如果改进了则把当前模型保存下来
+            #TODO：用测试集
+            if (i+1) % n_batch == 0:
+                length = distance.mean().item()
+
+                if length < min:
+                    min = length
+                    torch.save(model_train.state_dict(), os.path.join(save_dir, "time_{}_dis_{:.2f}.pt".format
+                                                      (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()), min)))
+                    print('Save model')
+
+            # Print statistics
+                print(f"Epoch {epoch}, Batch {i}, min {min}, length {length}")
+
+
+    # # Save model
+    # if not os.path.exists(save_dir):
+    #     os.makedirs(save_dir)
+    # torch.save(model_train.state_dict(), os.path.join(save_dir, "time_{}_dis_.pt".format
+    #                                                   (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()))))
     
-    print('Finished Training')
+
 
 if __name__ == '__main__':
     train_allocation_net()

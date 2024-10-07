@@ -86,6 +86,8 @@ class AllocationDataset(Dataset):
         feature_task = torch.from_numpy(self.batchs[idx].feature_task).float()
         feature_obstacle = torch.from_numpy(self.batchs[idx].feature_obstacle).float()
         costmat = torch.from_numpy(self.batchs[idx].costmats).float()
+        #到robot的cost设置成0
+        costmat[:,:,:self.batchs[idx].n_robot] = 0
         cfg = {
             "n_robot": int(self.batchs[idx].n_robot),
             "n_task": int(self.batchs[idx].n_task),

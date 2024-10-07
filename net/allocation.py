@@ -137,8 +137,8 @@ class AllocationNet(nn.Module):
             #TODO: 改成vectornet的方法，拼接
             x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
 
-            #debug
-            print(x_ob.shape)
+            # #debug
+            # print(x_ob.shape)
 
             for layer in self.local_encoder_layers:
                 x_ob = layer(x_ob)
@@ -159,8 +159,8 @@ class AllocationNet(nn.Module):
         distance = torch.zeros(self.batch_size).to(self.device)  # 总距离
         seq = torch.zeros(self.batch_size, self.rt_n-1).to(self.device)  # 选择的路径序列
 
-        #debug
-        print(self.batch_size)
+        # #debug
+        # print(self.batch_size)
 
         for i in range(self.rt_n-1):
             #mask
