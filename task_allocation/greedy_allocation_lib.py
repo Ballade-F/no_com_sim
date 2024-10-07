@@ -151,6 +151,61 @@ class GreedyTaskAllocationPlanner:
         # return math.sqrt(dx*dx + dy*dy)
 
 
+    # 贪心算法任务分配函数
+    # at_mat: 智能体到任务距离矩阵(num_agent, num_task)
+    # task_mat:  任务之间距离矩阵
+    def greedy_allocate_mat(self, at_mat:np.ndarray, task_mat:np.ndarray) -> List[List[int]]:
+        # 距离矩阵
+        dist_mat = deepcopy(at_mat)
+        
+        # 智能体任务序列
+        agent_schedules = [[] for i_agent in range(num_agent)]
+        # 智能体已有路径长度
+        agent_path_lengths = [0 for i_agent in range(num_agent)]
+        for i_task in range(num_task):
+            # 距离矩阵求最小值并计算对应任务编号与智能体编号
+            min_dist_index = np.argmin(dist_mat)
+            min_dist_agent = int(min_dist_index / num_task)
+            min_dist_task = int(min_dist_index % num_task)
+            # 距离矩阵对应列设为inf 任务不参与后续分配
+            dist_mat[:, min_dist_task] = np.inf
+            # 智能体任务序列添加
+            agent_schedules[min_dist_agent].append(min_dist_task)
+            # 智能体已有路径长度更新
+            if len(agent_schedules[min_dist_agent]) == 1:
+                agent_path_lengths[min_dist_agent] += at_mat[min_dist_agent, min_dist_task]
+            else:
+                last_task = agent_schedules[min_dist_agent][-2]
+                agent_path_lengths[min_dist_agent] += task_mat[last_task, min_dist_task]
+            # 新分配获得任务智能体更新距离矩阵对应行 设为已有长度+从当前点到下一点的距离
+            for i_task in range(num_task):
+                if dist_mat[min_dist_agent, i_task] == np.inf:
+                    continue
+                dist_mat[min_dist_agent, i_task] = agent_path_lengths[min_dist_agent]
+                dist_mat[min_dist_agent, i_task] += task_mat[min_dist_task, i_task]
+        return agent_schedules
+
+    # 任务分配距离代价评估函数
+    # at_mat: 智能体到任务距离矩阵(num_agent, num_task)
+    # task_mat:  任务之间距离矩阵
+    # schedules:   智能体任务序列
+    def allocation_distance_eval_mat(self, at_mat:np.ndarray, task_mat:np.ndarray,
+                                  schedules:List[list]):
+        num_agent = at_mat.shape[0]
+        num_task = task_mat.shape[0]
+        agent_distances = [0 for i_agent in range(num_agent)]
+        for i_agent in range(num_agent):
+            if len(schedules[i_agent]) == 0:
+                continue
+            agent_distances[i_agent] += at_mat[i_agent, schedules[i_agent][0]]
+            for i in range(1, len(schedules[i_agent])):
+                agent_distances[i_agent] += task_mat[schedules[i_agent][i-1], schedules[i_agent][i]]
+        total_distance = 0
+        for i_agent in range(num_agent):
+            total_distance += agent_distances[i_agent]
+        return total_distance
+
+
 if __name__ == '__main__':
     planner = GreedyTaskAllocationPlanner()
     num_task = 20
