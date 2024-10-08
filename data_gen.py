@@ -307,8 +307,8 @@ class IntentionDatasetGen():
 
 
 if __name__ == '__main__':
-    dir_allocation = "/home/zj/Desktop/wzr/no_com_sim/allocation_data"
-    dir_intention = "/home/zj/Desktop/wzr/no_com_sim/intention_data/"
+    dir_allocation = "/home/ballade/Desktop/Project/no_com_sim/allocation_data"
+    dir_intention = "/home/ballade/Desktop/Project/no_com_sim/intention_data"
     n_scale = 10
     n_map = 4
     n_batch = 10

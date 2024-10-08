@@ -84,11 +84,11 @@ class IntentionDataset(Dataset):
 
 # Test function
 def test_IntentionDataset():
-    map_dirs = "/home/zj/Desktop/wzr/no_com_sim/intention_data/scale_0"
+    map_dirs = "/home/ballade/Desktop/Project/no_com_sim/intention_data/scale_0"
     n_point_num = 5
     dataset = IntentionDataset(map_dirs, n_point_num)
     print("Dataset Length:", len(dataset))
-    # print("last data", dataset[74])
+    print("last data", dataset[36])
     dataloader = DataLoader(dataset, batch_size=4, shuffle=False)
 
     for batch in dataloader:
