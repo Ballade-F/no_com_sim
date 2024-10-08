@@ -139,6 +139,7 @@ class IntentionDatasetGen():
     def intentionScaleGen(self,dir_name, rng:np.random.Generator, n_robot, n_task, n_obstacle):
         # save scale information to a JSON file
         scale_info = {
+            "n_map": self.n_map,
             "n_robot": n_robot,
             "n_task": n_task,
             "n_obstacle": n_obstacle,
@@ -158,12 +159,24 @@ class IntentionDatasetGen():
             map = mp.Map(n_obstacle, n_robot, n_task, self.n_x, self.n_y, self.resolution_x, self.resolution_y)
             map.setObstacleRandn(rng)
 
-            #障碍csv
-            with open(os.path.join(dir_name_map, f"targets_obstacles.csv"), "w", newline='') as csv_file:
+            # #障碍csv
+            # with open(os.path.join(dir_name_map, f"targets_obstacles.csv"), "w", newline='') as csv_file:
+            #     writer = csv.writer(csv_file)
+            #     writer.writerow(["Type", "x", "y"])
+            #     # for task in map.tasks:
+            #     #     writer.writerow([0, task[0], task[1]])
+            #     for ob_idx, ob in enumerate(map.obstacles):
+            #         for point in ob:
+            #             writer.writerow([ob_idx+1, point[0], point[1]])
+            
+            # Save map information to a csv file
+            with open(os.path.join(dir_name_map, f"info.csv"), "w", newline='') as csv_file:
                 writer = csv.writer(csv_file)
                 writer.writerow(["Type", "x", "y"])
-                # for task in map.tasks:
-                #     writer.writerow([0, task[0], task[1]])
+                for start in map.starts:
+                    writer.writerow([-1, start[0], start[1]])
+                for task in map.tasks:
+                    writer.writerow([0, task[0], task[1]])
                 for ob_idx, ob in enumerate(map.obstacles):
                     for point in ob:
                         writer.writerow([ob_idx+1, point[0], point[1]])
@@ -294,8 +307,8 @@ class IntentionDatasetGen():
 
 
 if __name__ == '__main__':
-    dir_allocation = "/home/ballade/Desktop/Project/no_com_sim/allocation_data/"
-    dir_intention = "/home/ballade/Desktop/Project/no_com_sim/intention_data/"
+    dir_allocation = "/home/zj/Desktop/wzr/no_com_sim/allocation_data"
+    dir_intention = "/home/zj/Desktop/wzr/no_com_sim/intention_data/"
     n_scale = 10
     n_map = 4
     n_batch = 10
@@ -317,7 +330,7 @@ if __name__ == '__main__':
 
     allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
                                                   n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
-    allocation_dataset_gen.AllocationDatasetGen()
+    # allocation_dataset_gen.AllocationDatasetGen()
 
     intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
                                                 n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
