@@ -157,6 +157,8 @@ class GreedyTaskAllocationPlanner:
     def greedy_allocate_mat(self, at_mat:np.ndarray, task_mat:np.ndarray) -> List[List[int]]:
         # 距离矩阵
         dist_mat = deepcopy(at_mat)
+        num_agent = at_mat.shape[0]
+        num_task = task_mat.shape[0]
         
         # 智能体任务序列
         agent_schedules = [[] for i_agent in range(num_agent)]

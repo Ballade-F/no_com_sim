@@ -143,8 +143,8 @@ class IntentionDatasetGen():
             json.dump(scale_info, json_file, indent=4)
 
         #对于每个map，需要一个csv存障碍，一个csv存机器人轨迹和目标完成情况
-        for i in range(self.n_map):
-            dir_name_map = os.path.join(dir_name, f"map_{i}")
+        for i_map in range(self.n_map):
+            dir_name_map = os.path.join(dir_name, f"map_{i_map}")
             os.makedirs(dir_name_map, exist_ok=True)
             map = mp.Map(n_obstacle, n_robot, n_task, self.n_x, self.n_y, self.resolution_x, self.resolution_y)
             map.setObstacleRandn(rng)
@@ -165,7 +165,7 @@ class IntentionDatasetGen():
 
             # calculate the distance matrix
             rt_matrix = np.zeros((n_robot, n_task))
-            task_matrix = np.zeros((n_robot, n_task))
+            task_matrix = np.zeros((n_task, n_task))
             rt_path_norm = []
             task_path_norm = []
             for i in range(n_robot):
@@ -209,7 +209,7 @@ class IntentionDatasetGen():
 
             # Save robot trajectory and tasks to a csv file
             #TODO:换成dwa的轨迹
-            n = [len(path) for path in path_allot_norm]
+            n = [len(path) if len(robot_schedules[i]) != 0 else 0 for i, path in enumerate(path_allot_norm)] #如果没有任务，长度为0
             n_max = max(n)+1
             path_index = [0 for _ in range(n_robot)]
             points_num = [0 for _ in range(n_robot)]
@@ -228,31 +228,23 @@ class IntentionDatasetGen():
                                 path_index[j] += 1
                                 points_num[j] = 0
                         else:
-                            
-                            
+                            writer.writerow([i, 'robot', j, path_allot_norm[j][-1][0], path_allot_norm[j][-1][1], -1])
+
+                    for j in range(n_task):
+                        writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], int(map.tasks_finish[j])])
+            
+            if i_map == 0:
+                fig, ax = plt.subplots()
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                img = 255-map.grid_map*255
+                img = img.transpose()
+                ax.imshow(img, cmap='gray',vmin=0, vmax=255)
+                for path in path_allot_norm:
+                    ax.plot([x[0] for x in path], [x[1] for x in path], 'r')
+
+                map.plot()             
                         
-
-                            
-                            
-
-
-                
-
-                    
-
-
-        
-        
-            
-
-
-
-            
-
-
-
-
-
 
 
 def IntentionGen():
@@ -354,9 +346,9 @@ def IntentionGen():
 
 
 if __name__ == '__main__':
-    dir = "allocation_data"
-    n_batch = 10
-    batch_size = 4
+    # dir = "allocation_data"
+    # n_batch = 10
+    # batch_size = 4
     n_robot_min = 3
     n_robot_max = 5
     n_task_min = 5
@@ -370,7 +362,22 @@ if __name__ == '__main__':
     resolution_y = 0.1
     ob_points = mp.n_ob_points
     n_workers = 4
-    AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max,
-                          n_obstacle_min, n_obstacle_max,ob_points, seed, n_x, n_y, resolution_x, resolution_y,n_workers)
+    # AllocationDatasetGen(dir, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max,
+    #                       n_obstacle_min, n_obstacle_max,ob_points, seed, n_x, n_y, resolution_x, resolution_y,n_workers)
+
+
+    #test intentionScaleGen
+    dir = "/home/ballade/Desktop/Project/no_com_sim/intention_data/scale_0/"
+    n_scale = 1
+    n_map = 4
+    datagen = IntentionDatasetGen(dir, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+                        n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    rng = np.random.default_rng(2)
+    n_robot = 3
+    n_task = 5
+    n_obstacle = 3
+    datagen.intentionScaleGen(dir, rng, n_robot, n_task, n_obstacle)
+
+
 
             
