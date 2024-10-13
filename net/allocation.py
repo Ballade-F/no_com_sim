@@ -3,74 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from module import Self_Attention, Self_Cross_Attention
+from module import SelfAttentionBlock
 
 
-#输入输出[batch, n_points, embedding_size]
-class _attentionBlock(nn.Module):
-    def __init__(self, embedding_size:int,attention_head:int):
-        super(_attentionBlock, self).__init__()
-        if embedding_size % attention_head != 0 :
-            raise ValueError("embedding_size must be divisible by attention_head")
-        
-        self.local_attention = Self_Attention(embedding_size, attention_head)
-        self.bn1 = nn.BatchNorm1d(embedding_size)
-        self.bn2 = nn.BatchNorm1d(embedding_size)
-        self.ffc1 = nn.Linear(embedding_size, embedding_size)
-        self.ffc2 = nn.Linear(embedding_size, embedding_size)
 
-    def forward(self, x):
-        x = self.local_attention(x)
-        x = self.bn1(x.permute(0, 2, 1)).permute(0, 2, 1)
-        x1 = self.ffc1(x)
-        x1 = F.relu(x1)
-        x1 = self.ffc2(x1)
-        x = x1 + x
-        x = self.bn2(x.permute(0, 2, 1)).permute(0, 2, 1)
-        return x
-    
-
-# #输入[batch, n_obstacle, ob_points, 2]，输出[batch, n_obstacle, embedding_size]
-# class localEmbed(nn.Module):
-#     def __init__(self, input_size:int, embedding_size:int,attention_head:int, ob_points:int,local_embed_layers:int=2):
-#         super(localEmbed, self).__init__()
-#         if embedding_size % attention_head != 0 :
-#             raise ValueError("embedding_size must be divisible by attention_head")
-#         self.embedding_size = embedding_size
-#         self.ob_points = ob_points
-#         self.attention_head = attention_head
-#         self.local_embed_layers = local_embed_layers
-
-#         self.embedding_obstacle = nn.Linear(input_size, embedding_size)
-
-#         self.local_embed_layers = nn.ModuleList([
-#             Self_Attention(embedding_size, attention_head)
-#             for _ in range(local_embed_layers)
-#         ])
-
-        
-#     # x: (batch, n_obstacle, ob_points, 2)
-#     def forward(self, x):
-#         x = self.embedding_obstacle(x) #(batch, n_obstacle, ob_points, embedding_size)
-#         for layer in self.local_embed_layers:
-#             x = layer(x)
-#         x = torch.mean(x, dim=2) #(batch, n_obstacle,ob_points, embedding_size) -> (batch, n_obstacle, embedding_size)
-#         return x
-    
-
-# #输入[batch, n_robot+n_task, 3]，[batch, n_obstacle, ob_points, 2]，输出[batch, n_robot+n_task, embedding_size]
-# class _encoderBlock(nn.Module):
-#     def __init__(self, robot_n:int,task_n:int, ob_n:int, ob_points:int,
-#                  embedding_size:int, batch_size:int, attention_head:int):
-#         super(_encoderBlock, self).__init__()
-
-#         self.robot_n = robot_n
-#         self.task_n = task_n 
-#         self.ob_n = ob_n
-#         self.ob_points = ob_points
-#         self.embedding_size = embedding_size
-#         self.attention_head = attention_head
-#         self.batch_size = batch_size
 
 # 输入[batch, n_robot, 3]，[batch, n_robot, 3]，[batch, n_obstacle, ob_points, 2]
 class AllocationNet(nn.Module):
@@ -105,12 +41,12 @@ class AllocationNet(nn.Module):
         # encoder
         # local embedding
         self.local_encoder_layers = nn.ModuleList([
-            _attentionBlock(embedding_size, attention_head)
+            SelfAttentionBlock(embedding_size, attention_head)
             for _ in range(local_embed_layers)
         ])
         # global encoding
         self.encoder_layers = nn.ModuleList([
-            _attentionBlock(embedding_size, attention_head)
+            SelfAttentionBlock(embedding_size, attention_head)
             for _ in range(encoder_layer)
         ])
 

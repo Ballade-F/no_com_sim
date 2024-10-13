@@ -3,16 +3,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from module import Self_Attention, Self_Cross_Attention
+from module import Self_Attention, Self_Cross_Attention, SelfAttentionBlock
 
 
 
 class _encoderBlock(nn.Module):
-    def __init__(self, embedding_size:int, robot_n:int,task_n:int, batch_size:int, attention_head:int):
+    def __init__(self, embedding_size:int, attention_head:int):
         super(_encoderBlock, self).__init__()
 
-        self.robot_n = robot_n
-        self.task_n = task_n + 1 # 最后一个task是虚拟task，用于结束任务的robot
+        self.robot_n = -1
+        self.task_n = -1  # 最后一个task是虚拟task，用于结束任务的robot
 
         self.robot_attention = Self_Cross_Attention(embedding_size, attention_head)
         self.task_attention = Self_Attention(embedding_size, attention_head)
@@ -38,45 +38,74 @@ class _encoderBlock(nn.Module):
         
 
 class IntentionNet(nn.Module):
-    def __init__(self, embedding_size:int, robot_n:int,task_n:int, batch_size, attention_head:int,
-                 feature_robot:int = 10, feature_task:int = 3, encoder_layer:int = 3):
+    def __init__(self, ob_points:int, r_points:int,
+                 embedding_size:int, batch_size:int, attention_head:int,
+                 feature_robot:int = 2, feature_task:int = 3, feature_ob:int = 2,
+                 encoder_layer:int = 3, local_embed_layers:int=2, device='cpu'):
         super(IntentionNet, self).__init__()
         self.embedding_size = embedding_size
-        self.robot_n = robot_n
-        self.task_n = task_n + 1 # 最后一个task是虚拟task，用于结束任务的robot
+        self.robot_n = -1
+        self.task_n = -1 # 最后一个task是虚拟task，用于结束任务的robot
+        self.ob_n = -1
+
         self.batch_size = batch_size
-        
+        self.ob_points = ob_points
+        self.r_points = r_points
 
         # 嵌入
         self.embedding_robot = nn.Linear(feature_robot, embedding_size)
         self.embedding_task = nn.Linear(feature_task, embedding_size)
+        self.embedding_ob = nn.Linear(feature_ob, embedding_size)
+
+        self.robot_encoder_layers = nn.ModuleList([
+            SelfAttentionBlock(embedding_size, attention_head)
+            for _ in range(local_embed_layers)
+        ])
+        self.ob_encoder_layers = nn.ModuleList([
+            SelfAttentionBlock(embedding_size, attention_head)
+            for _ in range(local_embed_layers)
+        ])
 
         # encoder
         # TODO:正则化
-        self.encoder_layers = nn.ModuleList([
-            _encoderBlock(embedding_size, 
-                         robot_n, 
-                         task_n, 
-                         batch_size, 
-                         attention_head)
-                         for _ in range(encoder_layer)])
+        self.global_encoder_layers = nn.ModuleList([
+            SelfAttentionBlock(embedding_size, attention_head)
+            for _ in range(encoder_layer)
+        ])
 
         #decoder
         # TODO: 试试用mask盖住已完成的
         self.wq_rd = nn.Linear(embedding_size, embedding_size)
         self.wk_td = nn.Linear(embedding_size, embedding_size)
 
-
-    def forward(self,x_r_,x_t_,is_train):
+#x_r: (batch, n_robot,r_points, 2), x_t: (batch, self.n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2)
+    def forward(self,x_r_,x_t_,x_ob_,is_train):
          # 嵌入层
         x_r = self.embedding_robot(x_r_)
         x_t = self.embedding_task(x_t_)
+        x_ob = self.embedding_ob(x_ob_)
+
+        # local embedding
+        x_r = x_r.reshape(self.batch_size*self.robot_n, self.r_points, self.embedding_size)
+        for encoder_layer in self.robot_encoder_layers:
+            x_r = encoder_layer(x_r)
+        x_r = x_r.reshape(self.batch_size, self.robot_n, self.r_points, self.embedding_size)
+
+        if self.ob_n > 0:
+            x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
+            for encoder_layer in self.ob_encoder_layers:
+                x_ob = encoder_layer(x_ob)
+            x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
+
+        x_r = torch.mean(x_r, dim=2)
+        x_ob = torch.mean(x_ob, dim=2)
+
         # encoder
-        x = torch.cat((x_r, x_t), dim=1)
-        for encoder_layer in self.encoder_layers:
+        x = torch.cat((x_r, x_t, x_ob), dim=1)
+        for encoder_layer in self.global_encoder_layers:
             x = encoder_layer(x)
         x_r = x[:, :self.robot_n, :]
-        x_t = x[:, self.robot_n:, :]
+        x_t = x[:, self.robot_n:(self.robot_n+self.task_n), :]
 
         #decoder
         q_rd = self.wq_rd(x_r)
@@ -87,22 +116,34 @@ class IntentionNet(nn.Module):
 
         return qk_d
     
+    def config(self,cfg:dict):
+        self.robot_n = int(cfg['n_robot'])
+        self.task_n = int(cfg['n_task'])+1
+        self.ob_n = int(cfg['n_obstacle'])
+        
+
+    
 
 # Test function
 def test_intention_judgment_model():
     batch_size = 2
     robot_n = 5
     task_n = 3
+    ob_n = 2
+    ob_points = 16
+    r_points = 5
     embedding_size = 16
     attention_head = 4
 
-    model = IntentionNet(embedding_size, robot_n, task_n, batch_size, attention_head)
+    model = IntentionNet(ob_points, r_points, embedding_size, batch_size, attention_head)
     model.to(DEVICE)
+    model.config({'n_robot':robot_n, 'n_task':task_n, 'n_obstacle':ob_n})
 
-    x_r = torch.randn(batch_size, robot_n, 10).to(DEVICE)
+    x_r = torch.randn(batch_size, robot_n, r_points, 2).to(DEVICE)
     x_t = torch.randn(batch_size, task_n + 1, 3).to(DEVICE)
+    x_ob = torch.randn(batch_size, ob_n, ob_points, 2).to(DEVICE)
 
-    output = model(x_r, x_t, is_train=True)
+    output = model(x_r, x_t, x_ob, is_train=True)
     print("Output Shape:", output.shape)
     assert output.shape == (batch_size, robot_n, task_n + 1)
     assert isinstance(output, torch.Tensor)

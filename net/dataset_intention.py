@@ -23,11 +23,16 @@ class IntentionDataset(Dataset):
         self.n_obstacle = self.scale_info["n_obstacle"]
         self.n_map = self.scale_info["n_map"]
         self.ob_points = self.scale_info["ob_points"]
+        self.cfg = {'n_robot': self.n_robot, 
+                    'n_task': self.n_task, 
+                    'n_obstacle': self.n_obstacle, 
+                    'ob_points': self.ob_points}
 
         
         self.traj_robot = []
         self.traj_task = []
         self.traj_len = []
+        self.feature_obstacle = np.full((self.n_map, self.n_obstacle, self.ob_points, 2),-1, dtype=float)
         for i_map in range(self.n_map):
             map_dir = os.path.join(scale_dirs, f"map_{i_map}")
             trajectory_path = os.path.join(map_dir, "trajectory.csv")
@@ -48,6 +53,18 @@ class IntentionDataset(Dataset):
                 map_traj_task.append(traj_task)
             self.traj_robot.append(map_traj_robot)
             self.traj_task.append(map_traj_task)
+
+            # 读取障碍物信息
+            info_path = os.path.join(map_dir, "info.csv")
+            with open(info_path, "r") as f:
+                reader = csv.reader(f)
+                for idx, row in enumerate(reader):
+                    #表头
+                    if idx <= self.n_robot+self.n_task:
+                        continue
+                    idx_ob = int(row[0])-1
+                    idx_point = (idx-self.n_robot-self.n_task-1)-idx_ob*self.ob_points
+                    self.feature_obstacle[i_map, idx_ob, idx_point,:] = row[1:]
 
     def __len__(self):
         return sum(self.traj_len)
@@ -77,8 +94,13 @@ class IntentionDataset(Dataset):
         feature_robot = torch.FloatTensor(traj_robot_item)
         label = torch.LongTensor(label)
         feature_task = torch.FloatTensor(traj_task)
+        feature_obstacle = torch.FloatTensor(self.feature_obstacle[map_idx])
 
-        return feature_robot, label, feature_task
+        return feature_robot, label, feature_task, feature_obstacle
+        # feature_robot: (n_robot, n_robot_points, 2) 
+        # label: (n_robot)
+        # feature_task: (n_task+1, 3)
+        # feature_obstacle: (n_obstacle, ob_points, 2)
 
         
 
@@ -92,10 +114,11 @@ def test_IntentionDataset():
     dataloader = DataLoader(dataset, batch_size=4, shuffle=False)
 
     for batch in dataloader:
-        feature_robot, label, feature_task = batch
+        feature_robot, label, feature_task, feature_obstacle = batch
         print("Feature Robot Shape:", feature_robot.shape)
         print("Label Shape:", label.shape)
         print("Feature Task Shape:", feature_task.shape)
+        print("Feature Obstacle Shape:", feature_obstacle.shape)
         break  # Test only the first batch
 
 if __name__ == "__main__":

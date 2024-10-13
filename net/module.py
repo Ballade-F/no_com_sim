@@ -95,3 +95,26 @@ class Self_Cross_Attention(nn.Module):
         z_a = self.w(z_a) #(batch, n_a, embedding_size)
         z_a = z_a + x_a
         return z_a
+    
+    #输入输出[batch, n_points, embedding_size]
+class SelfAttentionBlock(nn.Module):
+    def __init__(self, embedding_size:int,attention_head:int):
+        super(SelfAttentionBlock, self).__init__()
+        if embedding_size % attention_head != 0 :
+            raise ValueError("embedding_size must be divisible by attention_head")
+        
+        self.local_attention = Self_Attention(embedding_size, attention_head)
+        self.bn1 = nn.BatchNorm1d(embedding_size)
+        self.bn2 = nn.BatchNorm1d(embedding_size)
+        self.ffc1 = nn.Linear(embedding_size, embedding_size)
+        self.ffc2 = nn.Linear(embedding_size, embedding_size)
+
+    def forward(self, x):
+        x = self.local_attention(x)
+        x = self.bn1(x.permute(0, 2, 1)).permute(0, 2, 1)
+        x1 = self.ffc1(x)
+        x1 = F.relu(x1)
+        x1 = self.ffc2(x1)
+        x = x1 + x
+        x = self.bn2(x.permute(0, 2, 1)).permute(0, 2, 1)
+        return x

@@ -4,8 +4,9 @@ import time
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from net.intention import IntentionNet
+from intention import IntentionNet
 from dataset_intention import IntentionDataset
+import json
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -19,53 +20,56 @@ else:
 def train_intention_net():
     # Hyperparameters
     embedding_size = 128
-    robot_n = 5
-    task_n = 5
-    batch_size = 128
+    batch_size = 16
     attention_head = 8
-    num_epochs = 50
+    r_points = 5
+    num_epochs = 10
     learning_rate = 0.001
 
+    save_dir = '/home/ballade/Desktop/Project/no_com_sim/net_model/intention/'
+    dataset_dir = "/home/ballade/Desktop/Project/no_com_sim/intention_data/"
+    # read json file
+    with open(os.path.join(dataset_dir, "dataset_info.json"), "r") as f:
+        dataset_info = json.load(f)
+    n_scale = dataset_info["n_scale"]
+    ob_points = dataset_info["ob_points"]
+
     # Initialize model, loss function, and optimizer
-    model = IntentionNet(embedding_size, robot_n, task_n, batch_size, attention_head).to(DEVICE)
-    save_dir = '/home/users/wzr/project/no_com_sim/model_save/intention/'
-    min = 0.1
+    model = IntentionNet(ob_points, r_points, embedding_size, batch_size, attention_head, device=DEVICE).to(DEVICE)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Load dataset
-    map_dirs = "/home/users/wzr/project/no_com_sim/intention_data/"
-    n_map = 100
-    dataset = IntentionDataset(map_dirs, n_map, robot_n, task_n)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
-    # Training loop
+    running_loss = 0.0
+    counter = 0
+    # epoch training
     for epoch in range(num_epochs):
         model.train()
-        running_loss = 0.0
-        for i, (feature_robot, label, feature_task) in enumerate(dataloader):
-            feature_robot, label, feature_task = feature_robot.to(DEVICE), label.to(DEVICE), feature_task.to(DEVICE)
+        for i_scale in range(n_scale):
+            dataset = IntentionDataset(os.path.join(dataset_dir, f"scale_{i_scale}"), r_points)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+            cfg = dataset.cfg
+            model.config(cfg)
+            for i, (feature_robot, label, feature_task, feature_obstacle) in enumerate(dataloader):
+                feature_robot, label, feature_task, feature_obstacle = feature_robot.to(DEVICE), label.to(DEVICE), feature_task.to(DEVICE), feature_obstacle.to(DEVICE)
 
-            # Zero the parameter gradients
-            optimizer.zero_grad()
+                # Zero the parameter gradients
+                optimizer.zero_grad()
 
-            # Forward pass
-            outputs = model(feature_robot, feature_task, is_train=True)
-            loss = criterion(outputs.view(-1, task_n + 1), label.view(-1).long())
+                # Forward pass
+                outputs = model(feature_robot, feature_task, feature_obstacle, is_train=True)
+                loss = criterion(outputs.reshape(-1, 1+cfg["n_task"]), label.reshape(-1).long())
 
-            # Backward pass and optimize
-            loss.backward()
-            optimizer.step()
+                running_loss += loss.item()
+                counter += 1
 
-            # Print statistics
-            running_loss += loss.item()
-            if i % 10 == 9:  # Print every 10 mini-batches
-                print(f'Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(dataloader)}], Loss: {running_loss / 10:.4f}')
-                if running_loss < min:
-                    min = running_loss
-                    torch.save(model.state_dict(), os.path.join(save_dir,'date{}-epoch{}-i{}-coss_{:.5f}.pt'.format(
-                        time.strftime("%Y-%m-%d", time.localtime()), epoch, i, running_loss)))
-                running_loss = 0.0
+                # Backward pass and optimize
+                loss.backward()
+                optimizer.step()
+
+        # Print statistics
+        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / counter:.4f}')
+                
 
     print('Finished Training')
 
