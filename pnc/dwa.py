@@ -2,24 +2,7 @@ import numpy as np
 from math import *
 import matplotlib.pyplot as plt
 
-
-#参数设置
-V_Min = -0.5            #最小速度
-V_Max = 3.0             #最大速度
-W_Min = -50*pi/180.0    #最小角速度
-W_Max = 50*pi/180.0     #最大角速度
-Va = 0.5                #加速度
-Wa = 30.0*pi/180.0      #角加速度
-Vreso = 0.05            #速度分辨率
-Wreso = 0.5*pi/180.0    #角速度分辨率
-radius = 1              #机器人模型半径
-
-Dt = 0.1                #时间间隔
-Predict_Time = 4.0      #模拟轨迹的持续时间
-
-alpha = 1.0             #距离目标点的评价函数的权重系数
-Belta = 1.0             #速度评价函数的权重系数
-Gamma = 1.0             #距离障碍物距离的评价函数的权重系数
+cost_inf = 10000.0
 
 
 #栅格地图 由格数和分辨力构成 0为可通行，1为障碍物
@@ -44,7 +27,8 @@ Gamma = 1.0             #距离障碍物距离的评价函数的权重系数
 #obstacle_r 障碍势场需要考虑的范围，单位m
 class DWA:
     def __init__(self, v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,
-                 obstacle_r, resolution_x, resolution_y, grid_map:np.ndarray):
+                 obstacle_r, resolution_x, resolution_y, grid_map:np.ndarray,
+                 v_min = -0.4, v_max = 0.4, w_min = -0.4, w_max = 0.4, v_reso = 0.05, w_reso = 0.05):
         self.v_ave = v_ave
         self.dt = dt
         self.predict_time = predict_time
@@ -53,6 +37,13 @@ class DWA:
         self.v_factor = v_factor
         self.w_factor = w_factor
         self.obstacle_factor = obstacle_factor
+
+        self.v_min = v_min
+        self.v_max = v_max
+        self.w_min = w_min
+        self.w_max = w_max
+        self.v_reso = v_reso
+        self.w_reso = w_reso
 
         self.obstacle_r = obstacle_r
         self.resolution_x = resolution_x
@@ -75,9 +66,42 @@ class DWA:
         self.w=0.0
         
 
-
+    #输入当前状态，输出是否有解，最优速度和角速度
     def DWA_Planner(self, path, x, y, theta,v,w):
-        pass
+        #1.确定路径是否在范围内，得到前瞻点和推荐速度
+        target_flag, target = self.getTarget(path)
+        if target_flag == False:
+            return False, None, None
+    
+        #2.遍历速度和角速度，计算评价函数
+        best_u = [0.0,0.0]
+        best_cost = cost_inf
+        for v in np.arange(self.v_min, self.v_max, self.v_reso):
+            for w in np.arange(self.w_min, self.w_max, self.w_reso):
+                #计算评价函数
+                collision_flag, cost = self.calculateCost([x,y,theta,v,w], [v,w], target)
+                if collision_flag == True:
+                    continue
+                if cost < best_cost:
+                    best_cost = cost
+                    best_u = [v,w]
+        if best_cost > cost_inf/2:
+            target_flag = False
+        return target_flag, best_u[0], best_u[1]
+    
+    #计算评价函数
+    #state = [x,y,theta,v,w]
+    #u = [v,w]
+    #target = [x,y,theta,v_ref]
+    def calculateCost(self, state, u, target):
+        #计算轨迹
+        traj, final_state = self.calculate_traj(state, u)
+        #计算评价函数
+        goal_cost = self.goal_cost([target[0],target[1],target[2]],[final_state[0],final_state[1],final_state[2]])
+        velocity_cost = self.u_cost(u,[target[3],0])
+        collision_flag, obstacle_cost = self.obstacle_cost(traj)
+        cost = goal_cost + velocity_cost + obstacle_cost
+        return collision_flag, cost
 
     def Update_GridMap(self, grid_map:np.ndarray):
         self.grid_map = grid_map
@@ -91,10 +115,10 @@ class DWA:
         #         else:
         #             self.filed_map[i][j] = 1.0/self.obstacle_cost([[i*self.resolution_x,j*self.resolution_y]])
         return True
-    
+
     #返回是否有解，[x,y,theta,v_ref]
     def getTarget(self, path):
-    #确定是否有解以及是否到终点
+        #确定是否有解以及是否到终点
         target_flag = False
         finish_flag = True
         find_r = self.v_ave * self.predict_time
@@ -135,13 +159,22 @@ class DWA:
         return target_flag, target
 
             
-    def forward(self, state, u, dt):
-        state[0] += u[0]*dt*cos(state[2])
-        state[1] += u[0]*dt*sin(state[2])
-        state[2] += u[1]*dt
+    def forward(self, state, u):
+        state[0] += u[0]*self.dt*cos(state[2])
+        state[1] += u[0]*self.dt*sin(state[2])
+        state[2] += u[1]*self.dt
         state[3] = u[0]
         state[4] = u[1]
         return state
+    
+    #给定初状态和速度角速度，计算轨迹和终点状态
+    def calculate_traj(self, state, u):
+        traj_len = int(self.predict_time / self.dt)
+        traj = [None for _ in range(traj_len)]
+        for i in range(traj_len):
+            state = self.forward(state, u)
+            traj[i] = (state[0],state[1])
+        return traj, state
 
     #u = [v,w] 采样选择的速度和角速度
     #u_ref = [v_ref,w_ref] 参考u，可以取当前角速度、参考速度
