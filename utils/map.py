@@ -99,7 +99,7 @@ class Map():
     
 
     # input: true coordinates
-    def setObstacles(self, obstacles: list, start: list, tasks: list):
+    def setObstacles(self, obstacles: list, start: np.ndarray, tasks: np.ndarray):
         for ob_points in obstacles:
             ob_points[:, 0] = ob_points[:, 0] / (self.n_x*self.resolution_x)
             ob_points[:, 1] = ob_points[:, 1] / (self.n_y*self.resolution_y)
@@ -225,8 +225,8 @@ class Map():
         img = 255-self.grid_map*255
         img = img.transpose()
         ax.imshow(img, cmap='gray')
-        for ob_points in self.obstacles:
-            ax.fill(ob_points[:, 0]*self.n_x, ob_points[:, 1]*self.n_y, 'r')
+        # for ob_points in self.obstacles:
+        #     ax.fill(ob_points[:, 0]*self.n_x, ob_points[:, 1]*self.n_y, 'r')
         plt.show()
 
 if __name__ == '__main__':
