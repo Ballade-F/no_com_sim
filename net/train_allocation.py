@@ -19,11 +19,11 @@ def train_allocation_net():
     # configuration
     embedding_size = 128
     attention_head = 8
-    num_epochs = 30
-    learning_rate = 0.0002
-    save_dir = '/home/zj/Desktop/wzr/no_com_sim/net_model/allocation/'
-    dataset_dir = "/home/zj/Desktop/wzr/no_com_sim/allocation_data/"
-    n_batch = 10
+    num_epochs = 100
+    learning_rate = 0.0001
+    save_dir = '/home/data/wzr/no_com_1/model/allocation'
+    dataset_dir = "/home/data/wzr/no_com_1/data/allocation"
+    n_batch = 127
     C=10
     is_train = True
 
@@ -36,7 +36,8 @@ def train_allocation_net():
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     n_ob_points = dataset.ob_points
-    batch_size = dataset.batch_size
+    # batch_size = dataset.batch_size
+    batch_size = 1
     
 
     # Initialize model, loss function, and optimizer
@@ -59,7 +60,7 @@ def train_allocation_net():
             costmats = costmats.squeeze(0)
 
             # #debug
-            # print(i)
+            print("epoch", epoch, "batch", i)
             # print(feature_robot.shape)
             # print(feature_task.shape)
             # print(feature_obstacle.shape)

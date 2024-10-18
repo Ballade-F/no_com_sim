@@ -64,9 +64,16 @@ class AllocationNet(nn.Module):
 #x_r: (batch, n_robot, 3), x_t: (batch, n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2), costmap: (batch, n_robot+n_task, n_robot+n_task)
     def forward(self, x_r, x_t, x_ob, costmap, is_train):
         x_rt = torch.cat((x_r, x_t), dim=1)
+
+        #debug
+        x_rt_debug = x_r
+
+        
         # 嵌入层
         x_rt = self.embedding_rt(x_rt)#(batch, n_robot+n_task, embedding_size)
         x_ob = self.embedding_ob(x_ob)#(batch, n_obstacle, ob_points, embedding_size)
+
+        
 
         # local embedding
         if x_ob.shape[1] != 0:
@@ -82,6 +89,7 @@ class AllocationNet(nn.Module):
         x_ob = torch.mean(x_ob, dim=2)
         # global encoding
         x = torch.cat((x_rt, x_ob), dim=1)
+
         for layer in self.encoder_layers:
             x = layer(x)
         x_rt = x[:, :self.rt_n, :]
@@ -136,6 +144,13 @@ class AllocationNet(nn.Module):
             qk_out = torch.tanh(qk_out)*self.C
             qk_out.masked_fill_(mask,-float('inf'))
             p = F.softmax(qk_out, dim=-1)
+
+            # 检查 p 张量中的异常值
+            if torch.any(torch.isnan(p)) or torch.any(torch.isinf(p)) or torch.any(p < 0):
+                print("qk_out contains invalid values:")
+                print(x_rt_debug)
+                # print(k)
+                raise ValueError("p tensor contains either `inf`, `nan` or element < 0")
 
             if is_train:
                 idx = torch.multinomial(p,1).squeeze()

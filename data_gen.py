@@ -303,34 +303,40 @@ class IntentionDatasetGen():
 
             for future in futures:
                 future.result()
+                print(f"Process {i+1}/{self.n_scale} completed")
 
 
 
 if __name__ == '__main__':
-    dir_allocation = "/home/ballade/Desktop/Project/no_com_sim/allocation_data"
-    dir_intention = "/home/ballade/Desktop/Project/no_com_sim/intention_data"
-    n_scale = 10
-    n_map = 4
-    n_batch = 10
-    batch_size = 4
+    dir_allocation = "/home/data/wzr/no_com_1/data/allocation"
+    dir_intention = "/home/data/wzr/no_com_1/data/intention"
+    #intention n_batch
+    n_scale = 128
+    #intention n_map in each scale
+    n_map = 16
+    #allocation n_batch
+    n_batch = 128
+    #allocation
+    batch_size = 64
+    
     n_robot_min = 3
-    n_robot_max = 5
-    n_task_min = 5
-    n_task_max = 8
+    n_robot_max = 8
+    n_task_min = 10
+    n_task_max = 30
     n_obstacle_min = 0
-    n_obstacle_max = 2
+    n_obstacle_max = 8
     seed = 0
     n_x = 100
     n_y = 100
     resolution_x = 0.1
     resolution_y = 0.1
     ob_points = mp.n_ob_points
-    n_workers = 4
+    n_workers = 64
 
 
     allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
                                                   n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
-    # allocation_dataset_gen.AllocationDatasetGen()
+    allocation_dataset_gen.AllocationDatasetGen()
 
     intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
                                                 n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)

@@ -134,7 +134,7 @@ class AStarPlanner():
                     heapq.heapify(open_list)
                 
 
-        return None
+        return [(start_node.x, start_node.y)], float('inf')
 
     
 if __name__ == '__main__':
