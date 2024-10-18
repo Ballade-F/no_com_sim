@@ -8,12 +8,14 @@ from allocation import AllocationNet
 from dataset_allocation import AllocationDataset
 from scipy.stats import ttest_rel
 
-if torch.cuda.is_available():
-    DEVICE = torch.device('cuda')
-    print('Using GPU')
-else:
-    DEVICE = torch.device('cpu')
-    print('Using CPU')
+# if torch.cuda.is_available():
+#     DEVICE = torch.device('cuda')
+#     print('Using GPU')
+# else:
+#     DEVICE = torch.device('cpu')
+#     print('Using CPU')
+
+DEVICE = torch.device('cpu')
 
 def train_allocation_net():
     # configuration

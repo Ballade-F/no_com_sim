@@ -36,7 +36,9 @@ class AllocationNet(nn.Module):
 
         # 嵌入
         self.embedding_rt = nn.Linear(rt_dim, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_rt.weight)
         self.embedding_ob = nn.Linear(ob_dim, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_ob.weight)
 
         # encoder
         # local embedding
