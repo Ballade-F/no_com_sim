@@ -20,14 +20,14 @@ else:
 def train_intention_net():
     # Hyperparameters
     embedding_size = 128
-    batch_size = 16
+    batch_size = 128
     attention_head = 8
     r_points = 5
-    num_epochs = 10
+    num_epochs = 100
     learning_rate = 0.001
 
-    save_dir = '/home/ballade/Desktop/Project/no_com_sim/net_model/intention/'
-    dataset_dir = "/home/ballade/Desktop/Project/no_com_sim/intention_data/"
+    save_dir = '/home/data/wzr/no_com_1/model/intention'
+    dataset_dir = "/home/data/wzr/no_com_1/data/intention"
     # read json file
     with open(os.path.join(dataset_dir, "dataset_info.json"), "r") as f:
         dataset_info = json.load(f)
@@ -39,15 +39,17 @@ def train_intention_net():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
+    datasets = [IntentionDataset(os.path.join(dataset_dir, f"scale_{i}"), r_points) for i in range(n_scale)]
+    dataloaders = [DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True) for dataset in datasets]
 
+    min_loss = 0.1
     running_loss = 0.0
-    counter = 0
     # epoch training
     for epoch in range(num_epochs):
         model.train()
         for i_scale in range(n_scale):
-            dataset = IntentionDataset(os.path.join(dataset_dir, f"scale_{i_scale}"), r_points)
-            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+            dataset = datasets[i_scale]
+            dataloader = dataloaders[i_scale]    
             cfg = dataset.cfg
             model.config(cfg)
             for i, (feature_robot, label, feature_task, feature_obstacle) in enumerate(dataloader):
@@ -61,14 +63,21 @@ def train_intention_net():
                 loss = criterion(outputs.reshape(-1, 1+cfg["n_task"]), label.reshape(-1).long())
 
                 running_loss += loss.item()
-                counter += 1
 
                 # Backward pass and optimize
                 loss.backward()
                 optimizer.step()
 
-        # Print statistics
-        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / counter:.4f}')
+                # Print statistics
+                if i == len(dataloader) - 1:
+                    loss_ave = running_loss / len(dataloader)
+                    print(f'Epoch [{epoch + 1}/{num_epochs}], Scale [{i_scale + 1}/{n_scale}], Loss: {loss_ave:.4f}')
+                    running_loss = 0.0
+                    if loss_ave < min_loss:
+                        min_loss = loss_ave
+                        torch.save(model.state_dict(), os.path.join(save_dir, "time_{}_loss_{:.2f}.pt".format
+                                                      (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()), min_loss)))
+                        print('Model saved')
                 
 
     print('Finished Training')

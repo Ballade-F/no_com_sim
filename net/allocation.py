@@ -54,13 +54,19 @@ class AllocationNet(nn.Module):
 
         #decoder
         self.dc_wq = nn.Linear(2*embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.dc_wq.weight)
         self.dc_wk = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.dc_wk.weight)
         self.dc_wv = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.dc_wv.weight)
         self.dc_w = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.dc_w.weight)
 
         #输出层
         self.out_wq = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.out_wq.weight)
         self.out_wk = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.out_wk.weight)
 
 
 #x_r: (batch, n_robot, 3), x_t: (batch, n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2), costmap: (batch, n_robot+n_task, n_robot+n_task)
@@ -68,9 +74,8 @@ class AllocationNet(nn.Module):
         x_rt = torch.cat((x_r, x_t), dim=1)
 
         #debug
-        x_rt_debug = x_r
+        x_rt_debug = x_rt
 
-        
         # 嵌入层
         x_rt = self.embedding_rt(x_rt)#(batch, n_robot+n_task, embedding_size)
         x_ob = self.embedding_ob(x_ob)#(batch, n_obstacle, ob_points, embedding_size)
@@ -150,7 +155,12 @@ class AllocationNet(nn.Module):
             # 检查 p 张量中的异常值
             if torch.any(torch.isnan(p)) or torch.any(torch.isinf(p)) or torch.any(p < 0):
                 print("qk_out contains invalid values:")
-                print(x_rt_debug)
+                # print(x_rt_debug)
+                print(x_rt_debug.shape)
+                if torch.any(torch.isnan(x_rt_debug)):
+                    print("nan")
+                    k = torch.isnan(x_rt_debug)
+                    print(k)
                 # print(k)
                 raise ValueError("p tensor contains either `inf`, `nan` or element < 0")
 

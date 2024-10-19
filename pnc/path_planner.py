@@ -134,7 +134,7 @@ class AStarPlanner():
                     heapq.heapify(open_list)
                 
 
-        return [(start_node.x, start_node.y)], float('inf')
+        return [(start_node.x, start_node.y)], self.n_x*self.n_y*(self.resolution_x+self.resolution_y)
 
     
 if __name__ == '__main__':

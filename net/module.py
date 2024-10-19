@@ -107,7 +107,9 @@ class SelfAttentionBlock(nn.Module):
         self.bn1 = nn.BatchNorm1d(embedding_size)
         self.bn2 = nn.BatchNorm1d(embedding_size)
         self.ffc1 = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.ffc1.weight)
         self.ffc2 = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.ffc2.weight)
 
     def forward(self, x):
         x = self.local_attention(x)

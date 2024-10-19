@@ -54,8 +54,11 @@ class IntentionNet(nn.Module):
 
         # 嵌入
         self.embedding_robot = nn.Linear(feature_robot, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_robot.weight)
         self.embedding_task = nn.Linear(feature_task, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_task.weight)
         self.embedding_ob = nn.Linear(feature_ob, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_ob.weight)
 
         self.robot_encoder_layers = nn.ModuleList([
             SelfAttentionBlock(embedding_size, attention_head)
@@ -76,7 +79,9 @@ class IntentionNet(nn.Module):
         #decoder
         # TODO: 试试用mask盖住已完成的
         self.wq_rd = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.wq_rd.weight)
         self.wk_td = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.wk_td.weight)
 
 #x_r: (batch, n_robot,r_points, 2), x_t: (batch, self.n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2)
     def forward(self,x_r_,x_t_,x_ob_,is_train):

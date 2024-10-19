@@ -83,7 +83,7 @@ def train_allocation_net():
             loss = torch.sum(loss) / batch_size
 
             # #debug
-            # print(loss)
+            # print(score)
 
             # Backward pass and optimize
             optimizer.zero_grad()

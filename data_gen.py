@@ -317,7 +317,7 @@ if __name__ == '__main__':
     #allocation n_batch
     n_batch = 128
     #allocation
-    batch_size = 64
+    batch_size = 128
     
     n_robot_min = 3
     n_robot_max = 8
@@ -338,9 +338,9 @@ if __name__ == '__main__':
                                                   n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
     allocation_dataset_gen.AllocationDatasetGen()
 
-    intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
-                                                n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
-    intention_dataset_gen.IntentionDatasetGen()
+    # intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
+    #                                             n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    # intention_dataset_gen.IntentionDatasetGen()
 
 
     
