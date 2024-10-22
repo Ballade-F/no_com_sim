@@ -27,8 +27,8 @@ cost_inf = 10000.0
 #obstacle_r 障碍势场需要考虑的范围，单位m
 class DWA:
     def __init__(self, v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,
-                 obstacle_r, resolution_x, resolution_y, grid_map:np.ndarray,
-                 v_min = -0.4, v_max = 0.4, w_min = -0.4, w_max = 0.4, v_reso = 0.05, w_reso = 0.05):
+                 obstacle_r, resolution_x, resolution_y, grid_map:np.ndarray,ob_filed_flag = False,
+                 v_min = -0.4, v_max = 0.4, w_min = -0.4, w_max = 0.4, v_reso = 0.1, w_reso = 0.1):
         self.v_ave = v_ave
         self.dt = dt
         self.predict_time = predict_time
@@ -51,6 +51,7 @@ class DWA:
         #障碍物势场需要考虑的栅格数
         self.obstacle_grid_x = int(obstacle_r/resolution_x)
         self.obstacle_grid_y = int(obstacle_r/resolution_y)
+        self.ob_filed_flag = ob_filed_flag
 
         self.n_x = grid_map.shape[0]
         self.n_y = grid_map.shape[1]
@@ -67,8 +68,13 @@ class DWA:
         
 
     #输入当前状态，输出是否有解，最优速度和角速度
-    def DWA_Planner(self, path, x, y, theta,v,w):
+    def DWA_Planner(self, path, state_0):
         #1.确定路径是否在范围内，得到前瞻点和推荐速度
+        self.x = state_0[0]
+        self.y = state_0[1]
+        self.theta = state_0[2]
+        self.v = state_0[3]
+        self.w = state_0[4]
         target_flag, target = self.getTarget(path)
         if target_flag == False:
             return False, None, None
@@ -79,7 +85,8 @@ class DWA:
         for v in np.arange(self.v_min, self.v_max, self.v_reso):
             for w in np.arange(self.w_min, self.w_max, self.w_reso):
                 #计算评价函数
-                collision_flag, cost = self.calculateCost([x,y,theta,v,w], [v,w], target)
+                state = state_0.copy()
+                collision_flag, cost = self.calculateCost(state, [v,w], target)
                 if collision_flag == True:
                     continue
                 if cost < best_cost:
@@ -99,7 +106,7 @@ class DWA:
         #计算评价函数
         goal_cost = self.goal_cost([target[0],target[1],target[2]],[final_state[0],final_state[1],final_state[2]])
         velocity_cost = self.u_cost(u,[target[3],0])
-        collision_flag, obstacle_cost = self.obstacle_cost(traj)
+        collision_flag, obstacle_cost = self.obstacle_cost(traj,self.ob_filed_flag)
         cost = goal_cost + velocity_cost + obstacle_cost
         return collision_flag, cost
 
@@ -179,13 +186,13 @@ class DWA:
     #u = [v,w] 采样选择的速度和角速度
     #u_ref = [v_ref,w_ref] 参考u，可以取当前角速度、参考速度
     def u_cost(self, u, u_ref):
-        cost = sqrt((self.v_factor*(u[0]-u_ref[0]))**2+(self.w_factor*(u[1]-u_ref[1]))**2)
+        cost = self.v_factor*(u[0]-u_ref[0])**2+self.w_factor*(u[1]-u_ref[1])**2
         return cost
     
     #final_state预测轨迹终点[x,y,theta]
     #goal目标点[x,y,theta]
     def goal_cost(self, goal, final_state):
-        cost = sqrt(self.pos_factor*(final_state[0]-goal[0])**2+self.pos_factor*(final_state[1]-goal[1])**2+self.theta_factor*(final_state[2]-goal[2])**2)
+        cost = self.pos_factor*((final_state[0]-goal[0])**2+(final_state[1]-goal[1])**2) + self.theta_factor*(final_state[2]-goal[2])**2
         return cost
     
     #traj 为预测轨迹，（x，y）列表； filed_flag是否考虑势场
@@ -201,7 +208,7 @@ class DWA:
                 collision_flag = True
             if self.grid_map[x][y] == 1:
                 collision_flag = True
-            if filed_flag == True:
+            if filed_flag == True and collision_flag == False:
                 #势场法
                 ob_counter = 0
                 cost_point = 0.0
@@ -213,7 +220,7 @@ class DWA:
                 if ob_counter > 0:
                     cost_point /= ob_counter
                 cost += cost_point
-        cost /= n_point
+        cost = cost/n_point * self.obstacle_factor
         return collision_flag, cost
             
 

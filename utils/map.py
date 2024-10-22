@@ -105,22 +105,24 @@ class Map():
             ob_points[:, 1] = ob_points[:, 1] / (self.n_y*self.resolution_y)
             self.obstacles.append(ob_points)
 
-        start[:, 0] = start[:, 0] / (self.n_x*self.resolution_x)
-        start[:, 1] = start[:, 1] / (self.n_y*self.resolution_y)
-        self.starts = start
+        start_ = start.copy()
+        start_[:, 0] = start[:, 0] / (self.n_x*self.resolution_x)
+        start_[:, 1] = start[:, 1] / (self.n_y*self.resolution_y)
+        self.starts = start_
 
-        tasks[:, 0] = tasks[:, 0] / (self.n_x*self.resolution_x)
-        tasks[:, 1] = tasks[:, 1] / (self.n_y*self.resolution_y)
-        self.tasks = tasks
+        tasks_ = tasks.copy()
+        tasks_[:, 0] = tasks[:, 0] / (self.n_x*self.resolution_x)
+        tasks_[:, 1] = tasks[:, 1] / (self.n_y*self.resolution_y)
+        self.tasks = tasks_
 
         self.tasks_finish = [False for _ in range(self.n_tasks)]
 
         self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
         self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
-        self.starts_grid[:,0] = np.floor(start[:,0]*self.n_x).astype(int)
-        self.starts_grid[:,1] = np.floor(start[:,1]*self.n_y).astype(int)
-        self.tasks_grid[:,0] = np.floor(tasks[:,0]*self.n_x).astype(int)
-        self.tasks_grid[:,1] = np.floor(tasks[:,1]*self.n_y).astype(int)
+        self.starts_grid[:,0] = np.floor(start_[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,1] = np.floor(start_[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,0] = np.floor(tasks_[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,1] = np.floor(tasks_[:,1]*self.n_y).astype(int)
 
         self._obstacle2grid()
 
