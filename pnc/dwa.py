@@ -1,6 +1,7 @@
 import numpy as np
 from math import *
 import matplotlib.pyplot as plt
+from concurrent.futures import ProcessPoolExecutor
 
 cost_inf = 10000.0
 
@@ -26,17 +27,19 @@ cost_inf = 10000.0
 '''
 #obstacle_r 障碍势场需要考虑的范围，单位m
 class DWA:
-    def __init__(self, v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,
+    def __init__(self, v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor, final_factor,
                  obstacle_r, resolution_x, resolution_y, grid_map:np.ndarray,ob_filed_flag = False,
-                 v_min = -0.4, v_max = 0.4, w_min = -0.4, w_max = 0.4, v_reso = 0.1, w_reso = 0.1):
+                 v_min = -0.3, v_max = 0.3, w_min = -0.3, w_max = 0.3, v_reso = 0.05, w_reso = 0.05, n_workers = 1):
         self.v_ave = v_ave
         self.dt = dt
         self.predict_time = predict_time
+        self.pred_len = int(predict_time/dt)
         self.pos_factor = pos_factor
         self.theta_factor = theta_factor
         self.v_factor = v_factor
         self.w_factor = w_factor
         self.obstacle_factor = obstacle_factor
+        self.final_factor = final_factor
 
         self.v_min = v_min
         self.v_max = v_max
@@ -44,6 +47,8 @@ class DWA:
         self.w_max = w_max
         self.v_reso = v_reso
         self.w_reso = w_reso
+
+        self.n_workers = n_workers
 
         self.obstacle_r = obstacle_r
         self.resolution_x = resolution_x
@@ -65,28 +70,45 @@ class DWA:
         self.theta=0.0
         self.v=0.0
         self.w=0.0
+
+        self.finish_flag = False
         
 
     #输入当前状态，输出是否有解，最优速度和角速度
     def DWA_Planner(self, path, state_0):
         #1.确定路径是否在范围内，得到前瞻点和推荐速度
+        w_ref = state_0[4]
         self.x = state_0[0]
         self.y = state_0[1]
         self.theta = state_0[2]
         self.v = state_0[3]
         self.w = state_0[4]
-        target_flag, target = self.getTarget(path)
+        target_flag, out_path, v_ref, _ = self.getTarget(path)
         if target_flag == False:
             return False, None, None
     
         #2.遍历速度和角速度，计算评价函数
         best_u = [0.0,0.0]
         best_cost = cost_inf
+        # with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+        #     futures = []
+        #     for v in np.arange(self.v_min, self.v_max, self.v_reso):
+        #         for w in np.arange(self.w_min, self.w_max, self.w_reso):
+        #             #计算评价函数
+        #             state = state_0.copy()
+        #             futures.append(executor.submit(self.calculateCost, state, [v,w], out_path, v_ref, w_ref))
+        #     for future in futures:
+        #         collision_flag, cost = future.result()
+        #         if collision_flag == True:
+        #             continue
+        #         if cost < best_cost:
+        #             best_cost = cost
+        #             best_u = [v,w]
         for v in np.arange(self.v_min, self.v_max, self.v_reso):
             for w in np.arange(self.w_min, self.w_max, self.w_reso):
                 #计算评价函数
                 state = state_0.copy()
-                collision_flag, cost = self.calculateCost(state, [v,w], target)
+                collision_flag, cost = self.calculateCost(state, [v,w], out_path, v_ref, w_ref)
                 if collision_flag == True:
                     continue
                 if cost < best_cost:
@@ -99,15 +121,15 @@ class DWA:
     #计算评价函数
     #state = [x,y,theta,v,w]
     #u = [v,w]
-    #target = [x,y,theta,v_ref]
-    def calculateCost(self, state, u, target):
+    #ref_path = [x,y,theta]的np数组，shape为[n,3]
+    def calculateCost(self, state, u, ref_path, ref_v, ref_w):
         #计算轨迹
         traj, final_state = self.calculate_traj(state, u)
         #计算评价函数
-        goal_cost = self.goal_cost([target[0],target[1],target[2]],[final_state[0],final_state[1],final_state[2]])
-        velocity_cost = self.u_cost(u,[target[3],0])
+        traj_cost = self.traj_cost(ref_path, traj)
+        velocity_cost = self.u_cost(u,[ref_v,ref_w])
         collision_flag, obstacle_cost = self.obstacle_cost(traj,self.ob_filed_flag)
-        cost = goal_cost + velocity_cost + obstacle_cost
+        cost = traj_cost + velocity_cost + obstacle_cost
         return collision_flag, cost
 
     def Update_GridMap(self, grid_map:np.ndarray):
@@ -123,47 +145,57 @@ class DWA:
         #             self.filed_map[i][j] = 1.0/self.obstacle_cost([[i*self.resolution_x,j*self.resolution_y]])
         return True
 
-    #返回是否有解，[x,y,theta,v_ref]
+    #返回是否有解，[x,y,theta]的np数组，shape为[n,3], v_ref
     def getTarget(self, path):
         #确定是否有解以及是否到终点
         target_flag = False
         finish_flag = True
-        find_r = self.v_ave * self.predict_time
-        target = np.zeros((4),dtype=float)
-        target_index = 0
+        find_r = self.v_max * self.predict_time
+        target_path = []
+        v_ref = self.v_ave
         for i ,point in enumerate(path):
             if sqrt((point[0]-self.x)**2+(point[1]-self.y)**2) < find_r:
-                target_flag = True
+                if not target_flag:
+                    # begin_idx = i
+                    target_flag = True
+                target_path.append(point)
             elif target_flag == True:
-                target_index = i
+                # target_index = i
                 finish_flag = False
                 break
         
         #离太远
         if target_flag == False:
-            return target_flag, target
+            return target_flag, None, None, None
         #到终点
-        if finish_flag == True:
-            t_point = path[-1]
-            t_last_point = path[-2]
-            #弧度
-            theta_ref = atan2(t_point[1]-t_last_point[1],t_point[0]-t_last_point[0])
-            t_r = sqrt((t_point[0]-self.x)**2+(t_point[1]-self.y)**2)
-            v_ref = t_r/find_r * self.v_ave
-            target[0] = t_point[0]
-            target[1] = t_point[1]
-            target[2] = theta_ref
-            target[3] = v_ref
-        else:
-            t_point = path[target_index]
-            t_last_point = path[target_index-1]
-            #弧度
-            theta_ref = atan2(t_point[1]-t_last_point[1],t_point[0]-t_last_point[0])
-            target[0] = t_point[0]
-            target[1] = t_point[1]
-            target[2] = theta_ref
-            target[3] = self.v_ave
-        return target_flag, target
+        self.finish_flag = finish_flag
+        # if finish_flag == True:
+        #     t_point = path[-1]
+        #     t_r = sqrt((t_point[0]-self.x)**2+(t_point[1]-self.y)**2)
+        #     v_ref = t_r/find_r * self.v_ave
+
+
+        #计算theta
+        n = len(target_path)
+        out_path = np.zeros((n,3),dtype=float)
+        for i in range(n):
+            if i == n-1:
+                out_path[i][0] = target_path[i][0]
+                out_path[i][1] = target_path[i][1]
+                out_path[i][2] = atan2(target_path[i][1]-target_path[i-1][1],target_path[i][0]-target_path[i-1][0])
+            else:
+                out_path[i][0] = target_path[i][0]
+                out_path[i][1] = target_path[i][1]
+                #弧度
+                out_path[i][2] = atan2(target_path[i+1][1]-target_path[i][1],target_path[i+1][0]-target_path[i][0])
+
+        #计算w_ref
+        t_point = path[-1]
+        theta_ref = atan2(t_point[1]-self.y,t_point[0]-self.x)
+        w_ref = (theta_ref-self.theta)/self.predict_time
+        w_ref = max(min(w_ref,self.w_max),self.w_min)
+
+        return target_flag, out_path, v_ref, w_ref
 
             
     def forward(self, state, u):
@@ -176,11 +208,10 @@ class DWA:
     
     #给定初状态和速度角速度，计算轨迹和终点状态
     def calculate_traj(self, state, u):
-        traj_len = int(self.predict_time / self.dt)
-        traj = [None for _ in range(traj_len)]
-        for i in range(traj_len):
+        traj = np.zeros((self.pred_len,3),dtype=float)
+        for i in range(self.pred_len):
             state = self.forward(state, u)
-            traj[i] = (state[0],state[1])
+            traj[i,:] = state[0:3]
         return traj, state
 
     #u = [v,w] 采样选择的速度和角速度
@@ -189,10 +220,23 @@ class DWA:
         cost = self.v_factor*(u[0]-u_ref[0])**2+self.w_factor*(u[1]-u_ref[1])**2
         return cost
     
-    #final_state预测轨迹终点[x,y,theta]
-    #goal目标点[x,y,theta]
-    def goal_cost(self, goal, final_state):
-        cost = self.pos_factor*((final_state[0]-goal[0])**2+(final_state[1]-goal[1])**2) + self.theta_factor*(final_state[2]-goal[2])**2
+    #pred_path [x,y,theta]的np数组，shape为[self.pred_len,3]
+    #ref_path [x,y,theta]的np数组，shape为[n,3]
+    def traj_cost(self, ref_path, pred_path):
+        pos_cost = 0.0
+        theta_cost = 0.0
+        for i in range(self.pred_len):
+            dx = pred_path[i,0] - ref_path[:,0]
+            dy = pred_path[i,1] - ref_path[:,1]
+            dist = dx**2+dy**2
+            min_idx = np.argmin(dist)
+            pos_cost += dist[min_idx]
+            theta_cost += (pred_path[i,2]-ref_path[min_idx,2])**2
+        pos_cost /= self.pred_len
+        theta_cost /= self.pred_len
+        final_pos_cost = self.final_factor*(pred_path[-1,0]-ref_path[-1,0])**2 + (pred_path[-1,1]-ref_path[-1,1])**2
+        final_theta_cost = self.final_factor*(pred_path[-1,2]-ref_path[-1,2])**2
+        cost = self.pos_factor*(pos_cost+final_pos_cost) + self.theta_factor*(theta_cost+final_theta_cost)
         return cost
     
     #traj 为预测轨迹，（x，y）列表； filed_flag是否考虑势场

@@ -19,6 +19,7 @@ def _state_update(state,u,dt):
 
 def _judge_arrival(state, target, r):
     if np.linalg.norm(state[:2]-target[:2]) < r:
+        print('arrived')
         return True
     else:
         return False
@@ -54,25 +55,30 @@ def test_dwa():
 
     v_ave = 0.2
     dt = 0.1
-    predict_time = 2
+    predict_time = 2.5
     pos_factor = 100
     theta_factor = 10
-    v_factor = 0
-    w_factor = 0
-    obstacle_factor = 100
-    obstacle_r = 1
+    # 最后一个点的代价权重 与 （其他轨迹点之平均 的权重） 的比例
+    final_factor = 0.05
+    v_factor = 40
+    w_factor = 20
+    obstacle_factor = 20
+    obstacle_r = 0.4
     resolution_x = map_data.resolution_x
     resolution_y = map_data.resolution_y
     grid_map = map_data.grid_map
 
-    dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor, obstacle_r, resolution_x, resolution_y, grid_map,True)
-    path_dwa = []
-    path_dwa.append((state_robot[0], state_robot[1]))
-    arrival_flag = False
-
+    dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
+                           obstacle_r, resolution_x, resolution_y, grid_map,True)
     counter = 0
+    path_dwa = []
+    plot_u = []
+    path_dwa.append((state_robot[0], state_robot[1]))
+    plot_u.append((counter, u_state[0], u_state[1]))
+    arrival_flag = False
+    
     while not arrival_flag:
-
+        counter += 1
         time_1 = TM.time()
         target_flag, u_state[0], u_state[1] = dwa_planner.DWA_Planner(path_true, state_robot)
         time_2 = TM.time()
@@ -83,8 +89,9 @@ def test_dwa():
             break
         state_robot = _state_update(state_robot, u_state, dt)
         path_dwa.append((state_robot[0], state_robot[1]))
-        arrival_flag = _judge_arrival(state_robot, target, 0.5)
-        counter += 1
+        plot_u.append((counter, u_state[0], u_state[1]))
+        arrival_flag = _judge_arrival(state_robot, target, 0.05)
+
         if counter > 1000:
             print('dwa failed')
             break
@@ -104,6 +111,12 @@ def test_dwa():
 
     ax.plot([x[0] for x in path_true], [x[1] for x in path_true], 'r')
     ax.plot([x[0] for x in path_dwa], [x[1] for x in path_dwa], 'b')
+    plt.show()
+    #plot u
+    fig, ax = plt.subplots()
+    ax.plot([x[0] for x in plot_u], [x[1] for x in plot_u], 'r', label='v')
+    ax.plot([x[0] for x in plot_u], [x[2] for x in plot_u], 'b', label='w')
+    plt.legend()
     plt.show()
 
 
