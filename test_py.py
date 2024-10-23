@@ -1,3 +1,4 @@
+from time import sleep
 import numpy as np
 import heapq
 
@@ -30,16 +31,38 @@ class astar_node():
 # print(a)
 # print(a.reshape(-1, 1))
 
-start_node = astar_node(0,0)
-goal_node = astar_node(10,10)
-start_node.g = 0
-start_node.h = 0
-start_node.f = 0
-open_list = []
-# heapq is a priority queue
-# push the start node into the open list
-heapq.heappush(open_list,  start_node)
-start_node.set_flag = 1
-start_node.f = 10
-print(open_list[0].f)
-heapq
+# start_node = astar_node(0,0)
+# goal_node = astar_node(10,10)
+# start_node.g = 0
+# start_node.h = 0
+# start_node.f = 0
+# open_list = []
+# # heapq is a priority queue
+# # push the start node into the open list
+# heapq.heappush(open_list,  start_node)
+# start_node.set_flag = 1
+# start_node.f = 10
+# print(open_list[0].f)
+# heapq
+
+
+def _task(a,b):
+    print(a)
+    sleep(2)
+    print(b)
+    return a+b
+
+
+def test_multiprocess():
+    from concurrent.futures import ProcessPoolExecutor
+    with ProcessPoolExecutor(max_workers=4) as executor:
+        futures = []
+        for i in range(8):
+            futures.append(executor.submit(_task, i, i+10))
+        for future in futures:
+            temp = future.result()
+            print(temp)
+    print('done')
+
+if __name__ == '__main__':
+    test_multiprocess()

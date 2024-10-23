@@ -69,7 +69,7 @@ def test_dwa():
     grid_map = map_data.grid_map
 
     dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
-                           obstacle_r, resolution_x, resolution_y, grid_map,True)
+                           obstacle_r, resolution_x, resolution_y, grid_map,True,n_workers=4)
     counter = 0
     path_dwa = []
     plot_u = []
@@ -82,7 +82,7 @@ def test_dwa():
         time_1 = TM.time()
         target_flag, u_state[0], u_state[1] = dwa_planner.DWA_Planner(path_true, state_robot)
         time_2 = TM.time()
-        # print('time: ', time_2 - time_1)
+        print('time: ', time_2 - time_1)
 
         if not target_flag:
             print('dwa failed')

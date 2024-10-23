@@ -1,7 +1,7 @@
 import numpy as np
 from math import *
 import matplotlib.pyplot as plt
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 cost_inf = 10000.0
 
@@ -29,7 +29,7 @@ cost_inf = 10000.0
 class DWA:
     def __init__(self, v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor, final_factor,
                  obstacle_r, resolution_x, resolution_y, grid_map:np.ndarray,ob_filed_flag = False,
-                 v_min = -0.3, v_max = 0.3, w_min = -0.3, w_max = 0.3, v_reso = 0.05, w_reso = 0.05, n_workers = 1):
+                 v_min = -0.3, v_max = 0.3, w_min = -0.3, w_max = 0.3, v_reso = 0.05, w_reso = 0.05, n_workers = 4):
         self.v_ave = v_ave
         self.dt = dt
         self.predict_time = predict_time
@@ -90,30 +90,29 @@ class DWA:
         #2.遍历速度和角速度，计算评价函数
         best_u = [0.0,0.0]
         best_cost = cost_inf
-        # with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-        #     futures = []
-        #     for v in np.arange(self.v_min, self.v_max, self.v_reso):
-        #         for w in np.arange(self.w_min, self.w_max, self.w_reso):
-        #             #计算评价函数
-        #             state = state_0.copy()
-        #             futures.append(executor.submit(self.calculateCost, state, [v,w], out_path, v_ref, w_ref))
-        #     for future in futures:
-        #         collision_flag, cost = future.result()
+        with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+            futures = []
+            for v in np.arange(self.v_min, self.v_max, self.v_reso):
+                for w in np.arange(self.w_min, self.w_max, self.w_reso):
+                    #计算评价函数
+                    state = state_0.copy()
+                    u = [v,w].copy()
+                    futures.append(executor.submit(self.calculateCost, state, u, out_path, v_ref, w_ref))
+            for future in futures:
+                collision_flag, cost, u_out = future.result()
+                if collision_flag == False and cost < best_cost:
+                    best_cost = cost
+                    best_u = u_out
+        # for v in np.arange(self.v_min, self.v_max, self.v_reso):
+        #     for w in np.arange(self.w_min, self.w_max, self.w_reso):
+        #         #计算评价函数
+        #         state = state_0.copy()
+        #         collision_flag, cost = self.calculateCost(state, [v,w], out_path, v_ref, w_ref)
         #         if collision_flag == True:
         #             continue
         #         if cost < best_cost:
         #             best_cost = cost
         #             best_u = [v,w]
-        for v in np.arange(self.v_min, self.v_max, self.v_reso):
-            for w in np.arange(self.w_min, self.w_max, self.w_reso):
-                #计算评价函数
-                state = state_0.copy()
-                collision_flag, cost = self.calculateCost(state, [v,w], out_path, v_ref, w_ref)
-                if collision_flag == True:
-                    continue
-                if cost < best_cost:
-                    best_cost = cost
-                    best_u = [v,w]
         if best_cost > cost_inf/2:
             target_flag = False
         return target_flag, best_u[0], best_u[1]
@@ -130,7 +129,7 @@ class DWA:
         velocity_cost = self.u_cost(u,[ref_v,ref_w])
         collision_flag, obstacle_cost = self.obstacle_cost(traj,self.ob_filed_flag)
         cost = traj_cost + velocity_cost + obstacle_cost
-        return collision_flag, cost
+        return collision_flag, cost, u
 
     def Update_GridMap(self, grid_map:np.ndarray):
         self.grid_map = grid_map
