@@ -8,38 +8,41 @@ from allocation import AllocationNet
 from dataset_allocation import AllocationDataset
 from scipy.stats import ttest_rel
 
-# if torch.cuda.is_available():
-#     DEVICE = torch.device('cuda')
-#     print('Using GPU')
-# else:
-#     DEVICE = torch.device('cpu')
-#     print('Using CPU')
+if torch.cuda.is_available():
+    DEVICE = torch.device('cuda')
+    print('Using GPU')
+else:
+    DEVICE = torch.device('cpu')
+    print('Using CPU')
 
-DEVICE = torch.device('cpu')
+# DEVICE = torch.device('cpu')
 
 def train_allocation_net():
     # configuration
     embedding_size = 128
     attention_head = 8
     num_epochs = 100
-    learning_rate = 0.0001
+    learning_rate = 0.0002
     save_dir = '/home/data/wzr/no_com_1/model/allocation'
     dataset_dir = "/home/data/wzr/no_com_1/data/allocation"
-    n_batch = 127
+    test_dir = "/home/data/wzr/no_com_1/data/allocation_test"
+    n_batch = 128
+    test_batch = 1
     C=10
     is_train = True
 
     bl_alpha = 0.05  # 做t-检验更新baseline时所设置的阈值
-    test2save_times = 20  # 训练过程中每次保存模型所需的测试batch数
-    min = 1000  # 当前已保存的所有模型中测试路径长度的最小值
+    min = 100  # 当前已保存的所有模型中测试路径长度的最小值
 
     # Load dataset 
     dataset = AllocationDataset(dataset_dir, n_batch)
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
+    dataset_test = AllocationDataset(test_dir, test_batch)
+    dataloader_test = DataLoader(dataset_test, batch_size=1, shuffle=False)
 
     n_ob_points = dataset.ob_points
-    # batch_size = dataset.batch_size
-    batch_size = 1
+    batch_size = dataset.batch_size
+    # batch_size = 1
     
 
     # Initialize model, loss function, and optimizer
@@ -62,7 +65,7 @@ def train_allocation_net():
             costmats = costmats.squeeze(0)
 
             # #debug
-            print("epoch", epoch, "batch", i)
+            # print("epoch", epoch, "batch", i)
             # print(feature_robot.shape)
             # print(feature_task.shape)
             # print(feature_obstacle.shape)
@@ -102,8 +105,21 @@ def train_allocation_net():
 
             # 每隔xxx步做测试判断结果有没有改进，如果改进了则把当前模型保存下来
             #TODO：用测试集
-            if (i+1) % n_batch == 0:
-                length = distance.mean().item()
+            if (i+1) % 30 == 0:
+                model_train.eval()
+                length = 0.0
+                for _, (feature_robot, feature_task, feature_obstacle, costmats, cfg) in enumerate(dataloader_test):
+                    feature_robot, feature_task, feature_obstacle, costmats = feature_robot.to(DEVICE), feature_task.to(DEVICE), feature_obstacle.to(DEVICE), costmats.to(DEVICE)
+                    feature_robot = feature_robot.squeeze(0)
+                    feature_task = feature_task.squeeze(0)
+                    feature_obstacle = feature_obstacle.squeeze(0)
+                    costmats = costmats.squeeze(0)
+
+                    # Forward pass
+                    model_train.config(cfg)
+                    seq, pro, distance = model_train(feature_robot, feature_task, feature_obstacle, costmats, is_train=False)
+                    length += distance.mean().item()
+                length = length/test_batch
 
                 if length < min:
                     min = length
@@ -111,8 +127,10 @@ def train_allocation_net():
                                                       (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()), min)))
                     print('Save model')
 
-            # Print statistics
+                # Print statistics
                 print(f"Epoch {epoch}, Batch {i}, min {min}, length {length}")
+
+                model_train.train()
 
 
     # # Save model
