@@ -60,7 +60,7 @@ class Map():
 
             
             if min_y_index == max_y_index:
-                self.grid_map[min_x_index:max_x_index + 1, min_y_index] = 1
+                # self.grid_map[min_x_index:max_x_index + 1, min_y_index] = 1
                 continue
 
             #if the x_axis ray crosses the polygon, the grids both up and down the ray should be filled
