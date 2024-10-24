@@ -184,7 +184,6 @@ class AllocationNet(nn.Module):
 
         
 
-#TODO: finish cfg
     def config(self,cfg:dict):
         self.robot_n = int(cfg['n_robot'])
         self.task_n = int(cfg['n_task'])
