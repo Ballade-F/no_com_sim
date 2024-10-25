@@ -75,12 +75,38 @@ class AStarPlanner():
                         distance = self.resolution_y
                     neighbors.append((x, y, distance))
         return neighbors
+    
+    def true2grid(self, point)->tuple:
+        x_index = int(point[0]/self.resolution_x)
+        y_index = int(point[1]/self.resolution_y)
+        x_index = max(0, min(x_index, self.n_x-1))
+        y_index = max(0, min(y_index, self.n_y-1))
+        return (x_index, y_index)
+    
+    def grid2true(self, point)->tuple:
+        x = (point[0] + 0.5) * self.resolution_x
+        x = max(0, min(x, self.n_x*self.resolution_x))
+        y = (point[1] + 0.5) * self.resolution_y
+        y = max(0, min(y, self.n_y*self.resolution_y))
+        return (x, y)
 
     #return the path from start to goal and the distance
-    def plan(self, start:tuple, goal:tuple):
+    def plan(self, start:tuple, goal:tuple, reset_nodes=True, grid_mode=True):
+        if reset_nodes:
+            self.resetNodes()
+
+        start_idx = None
+        goal_idx = None
+        if not grid_mode:
+            start_idx = self.true2grid(start)
+            goal_idx = self.true2grid(goal)
+        else:
+            start_idx = start
+            goal_idx = goal
+
         # the = in python equal to the reference in c++
-        start_node = self.grid_nodes[start[0]][start[1]]
-        goal_node = self.grid_nodes[goal[0]][goal[1]]
+        start_node = self.grid_nodes[start_idx[0]][start_idx[1]]
+        goal_node = self.grid_nodes[goal_idx[0]][goal_idx[1]]
         start_node.g = 0
         start_node.h = self._heuristic(start_node, goal_node)
         start_node.f = start_node.g + start_node.h
@@ -104,7 +130,10 @@ class AStarPlanner():
             if current_node == goal_node:
                 path = []
                 while current_node is not None:
-                    path.append((current_node.x, current_node.y))
+                    if grid_mode:
+                        path.append((current_node.x, current_node.y))
+                    else:
+                        path.append(self.grid2true((current_node.x, current_node.y)))
                     current_node = current_node.parent
                 return path[::-1], goal_node.g
             # get the neighbors of the current node
@@ -133,8 +162,7 @@ class AStarPlanner():
                     # heapq.heappush(open_list, neighbor_node)
                     heapq.heapify(open_list)
                 
-
-        return [(start_node.x, start_node.y)], self.n_x*self.n_y*(self.resolution_x+self.resolution_y)
+        return [(start[0], start[1])], self.n_x*self.n_y*(self.resolution_x+self.resolution_y)
 
     
 if __name__ == '__main__':

@@ -25,43 +25,45 @@ class RingBuffer:
     def __len__(self):
         return len(self.queue)
 
-# Example usage
-pq = RingBuffer(4)
-pq.push(1)
-pq.push(2)
-pq.push(3)
-print("expect 3,3,2,1,1")
-print(len(pq)) # 3
-print(pq[0]) # 3
-print(pq[1]) # 2
-print(pq[2]) # 1
-print(pq[-1]) # 1
 
-pq.push(4)
-print("expect 4,4,3,2,1")
-print(len(pq)) # 4
-print(pq[0]) # 4
-print(pq[1]) # 3
-print(pq[2]) # 2
-print(pq[-1]) # 1
+if __name__ == "__main__":
+    # Example usage
+    pq = RingBuffer(4)
+    pq.push(1)
+    pq.push(2)
+    pq.push(3)
+    print("expect 3,3,2,1,1")
+    print(len(pq)) # 3
+    print(pq[0]) # 3
+    print(pq[1]) # 2
+    print(pq[2]) # 1
+    print(pq[-1]) # 1
 
-pq.push(5)
-print("expect 4,5,4,3,2")
-print(len(pq)) # 4
-print(pq[0]) # 5
-print(pq[1]) # 4
-print(pq[2]) # 3
-print(pq[-1]) # 2
+    pq.push(4)
+    print("expect 4,4,3,2,1")
+    print(len(pq)) # 4
+    print(pq[0]) # 4
+    print(pq[1]) # 3
+    print(pq[2]) # 2
+    print(pq[-1]) # 1
 
-pq.push(6)
-pq.push(7)
-pq.push(8)
-pq.push(9)
-pq.push(10)
-print("expect 4,10,9,8,7")
-print(len(pq)) # 4
-print(pq[0]) # 10
-print(pq[1]) # 9
-print(pq[2]) # 8
-print(pq[-1]) # 7
+    pq.push(5)
+    print("expect 4,5,4,3,2")
+    print(len(pq)) # 4
+    print(pq[0]) # 5
+    print(pq[1]) # 4
+    print(pq[2]) # 3
+    print(pq[-1]) # 2
+
+    pq.push(6)
+    pq.push(7)
+    pq.push(8)
+    pq.push(9)
+    pq.push(10)
+    print("expect 4,10,9,8,7")
+    print(len(pq)) # 4
+    print(pq[0]) # 10
+    print(pq[1]) # 9
+    print(pq[2]) # 8
+    print(pq[-1]) # 7
 

@@ -43,6 +43,9 @@ class Map():
             min_y_index = int(np.min(ob_points[:, 1]))
             max_y_index = int(np.max(ob_points[:, 1]))
 
+            min_y_index = max(0, min(min_y_index, self.n_y-1))
+            max_y_index = max(0, min(max_y_index, self.n_y-1))
+
             # #debug
             # print(ob_points)
             # print(min_x_index, max_x_index, min_y_index, max_y_index)
@@ -75,6 +78,8 @@ class Map():
                 for i in range(0, len(active_edge_table), 2):
                     x_start = int(active_edge_table[i][2]+active_edge_table[i][3]*(y-active_edge_table[i][0]))
                     x_end = int(active_edge_table[i + 1][2]+active_edge_table[i+1][3]*(y-active_edge_table[i+1][0]))
+                    x_start = max(0,min(x_start, self.n_x-1))
+                    x_end = max(0,min(x_end, self.n_x-1))
                     self.grid_map[x_start:x_end+1, y-1:y+1] = 1
 
     # input: true coordinates
@@ -97,6 +102,41 @@ class Map():
         y_index = np.floor(y*self.n_y).astype(int)
         return self.grid_map[x_index, y_index] == 1
     
+    def true2grid(self, point)->tuple:
+        x_index = int(point[0]/self.resolution_x)
+        y_index = int(point[1]/self.resolution_y)
+        x_index = max(0, min(x_index, self.n_x-1))
+        y_index = max(0, min(y_index, self.n_y-1))
+        return (x_index, y_index)
+    
+    # input: true coordinates
+    def setStartTask(self, start:np.ndarray, tasks:np.ndarray):
+        start_ = start.copy()
+        start_[:, 0] = start[:, 0] / (self.n_x*self.resolution_x)
+        start_[:, 1] = start[:, 1] / (self.n_y*self.resolution_y)
+        start_[:, 0] = max(0, min(start_[:, 0], 1))
+        start_[:, 1] = max(0, min(start_[:, 1], 1))
+        self.starts = start_
+
+        tasks_ = tasks.copy()
+        tasks_[:, 0] = tasks[:, 0] / (self.n_x*self.resolution_x)
+        tasks_[:, 1] = tasks[:, 1] / (self.n_y*self.resolution_y)
+        tasks_[:, 0] = max(0, min(tasks_[:, 0], 1))
+        tasks_[:, 1] = max(0, min(tasks_[:, 1], 1))
+        self.tasks = tasks_
+
+        self.tasks_finish = [False for _ in range(self.n_tasks)]
+
+        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
+        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
+        self.starts_grid[:,0] = np.floor(start_[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,0] = max(0, min(self.starts_grid[:,0], self.n_x-1))
+        self.starts_grid[:,1] = np.floor(start_[:,1]*self.n_y).astype(int)
+        self.starts_grid[:,1] = max(0, min(self.starts_grid[:,1], self.n_y-1))
+        self.tasks_grid[:,0] = np.floor(tasks_[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,0] = max(0, min(self.tasks_grid[:,0], self.n_x-1))
+        self.tasks_grid[:,1] = np.floor(tasks_[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,1] = max(0, min(self.tasks_grid[:,1], self.n_y-1))
 
     # input: true coordinates
     def setObstacles(self, obstacles: list, start: np.ndarray, tasks: np.ndarray):
@@ -105,24 +145,7 @@ class Map():
             ob_points[:, 1] = ob_points[:, 1] / (self.n_y*self.resolution_y)
             self.obstacles.append(ob_points)
 
-        start_ = start.copy()
-        start_[:, 0] = start[:, 0] / (self.n_x*self.resolution_x)
-        start_[:, 1] = start[:, 1] / (self.n_y*self.resolution_y)
-        self.starts = start_
-
-        tasks_ = tasks.copy()
-        tasks_[:, 0] = tasks[:, 0] / (self.n_x*self.resolution_x)
-        tasks_[:, 1] = tasks[:, 1] / (self.n_y*self.resolution_y)
-        self.tasks = tasks_
-
-        self.tasks_finish = [False for _ in range(self.n_tasks)]
-
-        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
-        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
-        self.starts_grid[:,0] = np.floor(start_[:,0]*self.n_x).astype(int)
-        self.starts_grid[:,1] = np.floor(start_[:,1]*self.n_y).astype(int)
-        self.tasks_grid[:,0] = np.floor(tasks_[:,0]*self.n_x).astype(int)
-        self.tasks_grid[:,1] = np.floor(tasks_[:,1]*self.n_y).astype(int)
+        self.setStartTask(start, tasks)
 
         self._obstacle2grid()
 

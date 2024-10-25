@@ -4,6 +4,7 @@ allocation_data/
 model_save/
 .vscode/
 data/
+log/
 *.npy
 *.csv
 *.json
