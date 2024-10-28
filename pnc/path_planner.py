@@ -91,7 +91,15 @@ class AStarPlanner():
         return (x, y)
 
     #return the path from start to goal and the distance
-    def plan(self, start:tuple, goal:tuple, reset_nodes=True, grid_mode=True):
+    
+    def plan(self, start:tuple, goal:tuple, reset_nodes=True, grid_mode=True, path_flag=True):
+        '''
+        @param start: the start point of the path
+        @param goal: the goal point of the path
+        @param reset_nodes: if reset the nodes g, h, f, parent, set_flag
+        @param grid_mode: if the start and goal are in grid mode, if not, please input points in true coordinate
+        @param path_flag: if return the path and distance, if not, only return the distance
+        '''
         if reset_nodes:
             self.resetNodes()
 
@@ -128,6 +136,8 @@ class AStarPlanner():
             current_node.set_flag = 2
             # if the current node is the goal node, return the path and distance
             if current_node == goal_node:
+                if path_flag == False:
+                    return goal_node.g
                 path = []
                 while current_node is not None:
                     if grid_mode:
@@ -162,6 +172,8 @@ class AStarPlanner():
                     # heapq.heappush(open_list, neighbor_node)
                     heapq.heapify(open_list)
                 
+        if path_flag == False:
+            return goal_node.g
         return [(start[0], start[1])], self.n_x*self.n_y*(self.resolution_x+self.resolution_y)
 
     

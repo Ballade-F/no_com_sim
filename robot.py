@@ -17,15 +17,15 @@ import net.allocation as allocation
 import net.intention as intention
 
 
-class RobotData():
-    def __init__(self, n_robot) -> None:
-        self.n_robot = n_robot
-        self.data = np.zeros((n_robot, 3))# x, y, theta
+# class RobotData():
+#     def __init__(self, n_robot) -> None:
+#         self.n_robot = n_robot
+#         self.data = np.zeros((n_robot, 3))# x, y, theta
 
-class TaskData():
-    def __init__(self, n_task) -> None:
-        self.n_task = n_task
-        self.data = np.zeros((n_task, 3))# x, y, if_finished
+# class TaskData():
+#     def __init__(self, n_task) -> None:
+#         self.n_task = n_task
+#         self.data = np.zeros((n_task, 3))# x, y, if_finished
 
 class Robot:
     def __init__(self, map:mp.Map, cfg_dir:str, device='cpu') -> None:
@@ -39,6 +39,7 @@ class Robot:
         self.device = device
         self.n_robot = n_robot
         self.n_task = n_task
+        self.n_rt = n_robot + n_task
 
         self.n_ob_points = n_ob_points
         self.n_obstacle = n_obstacle
@@ -57,8 +58,8 @@ class Robot:
             self.feature_obstacle[i_ob] = self.static_map.obstacles[i_ob]
         self.feature_obstacle = self.feature_obstacle.unsqueeze(0)# (1, n_obstacle, n_ob_points, 2)
 
-        self.robot_data = RobotData(self.n_robot)
-        self.task_data = TaskData(self.n_task)
+        self.robot_data = np.zeros((self.n_robot, 3))# x, y, theta
+        self.task_data = np.zeros((self.n_task, 3))# x, y, if_finished
         self.path = []
         self.task_list = []
         self.robot_intention = np.full((self.n_robot), -1, dtype=int)
@@ -85,12 +86,25 @@ class Robot:
     # 算法类实例与网络类实例
         dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
                            obstacle_r, self.map.resolution_x, self.map.resolution_y, self.map.grid_map,True,n_workers=4)
-        self.path_planner = path_planner.AStarPlanner(self.map.grid_map, self.map.resolution_x, self.map.resolution_y)
+        self.path_planner = path_planner.AStarPlanner(self.static_map.grid_map, self.static_map.resolution_x, self.static_map.resolution_y)
         #TODO: 换成网络
         self.task_allocation = greedy.GreedyTaskAllocationPlanner()
         self.intention_judgment = intention.IntentionNet()
         self.intention_judgment.config(intention_config)
         self.intention_judgment.load_state_dict(torch.load(intention_model_dir))
+
+    # 初始化
+        starts = map.starts_grid
+        tasks = map.tasks_grid
+        points = np.concatenate((starts, tasks), axis=0)
+        # 下三角矩阵
+        self.costmat = np.full((self.n_rt, self.n_rt),fill_value=-1.0,dtype=float)
+        for j in range(self.n_rt):
+            for k in range(j+1):
+                # astar_planner.resetNodes()
+                self.costmat[j, k] = self.path_planner.plan(points[j], points[k],path_flag=False)
+                # 对称矩阵
+                self.costmat[k, j] = self.costmat[j, k]
 
 
 
@@ -125,6 +139,7 @@ class Robot:
 
         # 更新任务状态
         self.task_data = task_data
+        # 只关注最近一个任务
         while len(self.task_list) > 0:
             if self.task_data[self.task_list[0]][2] == 1:
                 self.task_list.pop(0)
@@ -137,8 +152,10 @@ class Robot:
 
     def updatePlan(self):
         if self.replan_flag:
-            _start = self.map.true2grid([self.x, self.y])
-            _task = self.map.true2grid([self.task_data[self.task_list[0]][0], self.task_data[self.task_list[0]][1]])
+            # _start = self.map.true2grid([self.x, self.y])
+            # _task = self.map.true2grid([self.task_data[self.task_list[0]][0], self.task_data[self.task_list[0]][1]])
+            _start = [self.x, self.y]
+            _task = [self.task_data[self.task_list[0]][0], self.task_data[self.task_list[0]][1]]
             self.path,_cost = self.path_planner.plan(_start, _task, reset_nodes=True, grid_mode=False)
             self.replan_flag = False
             self.stop_flag = False
@@ -167,8 +184,8 @@ class Robot:
         task_traj = torch.empty(self.n_task, self.buffer_size, 3,dtype=torch.float32, device=self.device)
         for i in range(self.buffer_size):
             # intention网络里面 0号是最老的，buffer里面0号是最新的
-            robot_traj[:,i,:] = self.buffer_robots[self.buffer_size-i-1].data[:,:2]
-            task_traj[:,i,:] = self.buffer_tasks[self.buffer_size-i-1].data[:,:]
+            robot_traj[:,i,:] = self.buffer_robots[self.buffer_size-i-1][:,:2]
+            task_traj[:,i,:] = self.buffer_tasks[self.buffer_size-i-1][:,:]
         robot_traj = robot_traj.unsqueeze(0)# (1, n_robot, buffer_size, 2)
         task_traj = task_traj.unsqueeze(0)# (1, n_task, buffer_size, 3)
         intentionProba_rt = self.intention_judgment(robot_traj, task_traj, self.feature_obstacle,is_train=False)# (1, n_robot, n_task)
@@ -180,7 +197,46 @@ class Robot:
         
     
     def updateDecision(self):
-        pass
+        # 使用贪心
+        reallocation_flag = False
+        #列表为空
+        if len(self.task_list) == 0:
+            reallocation_flag = True
+        #任务列表中有任务已经被完成
+        for i in range(len(self.task_list)):
+            if self.task_data[self.task_list[i]][2] == 1:
+                reallocation_flag = True
+                break
+        if reallocation_flag:
+            #选择出还未被完成的任务序号
+            taskidx_unfinished = []
+            for i in range(self.n_task):
+                if self.task_data[i][2] == 0:
+                    taskidx_unfinished.append(i)
+            n_task_unfinished = len(taskidx_unfinished)
+            #构建cost_rt
+            cost_rt = np.zeros((self.n_robot, n_task_unfinished))
+            for i in range(self.n_robot):
+                for j in range(n_task_unfinished):
+                    cost_rt[i,j] = self.path_planner.plan(self.robot_data[i][:2], self.task_data[taskidx_unfinished[j]][:2],
+                                                          grid_mode=False,path_flag=False)
+            #构建cost_t
+            cost_t = np.zeros((n_task_unfinished, n_task_unfinished))
+            for i in range(n_task_unfinished):
+                for j in range(i+1):
+                    cost_t[i,j] = self.costmat[taskidx_unfinished[i],taskidx_unfinished[j]]
+                    cost_t[j,i] = cost_t[i,j]
+            #分配
+            self.task_list = self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]
+            if len(self.task_list) == 0:
+                self.stop_flag = True
+                self.replan_flag = False
+                return
+            #冲突消解
+            # reallocation_flag = False
+
+
+        # TODO: 使用网络，给出一个选项：不用算整个路径，只要算下一个task是谁
     
 
     def control_callback(self):

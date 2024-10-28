@@ -59,8 +59,8 @@ class AllocationDatasetGen():
             costmat = np.full((n_robot+n_task, n_robot+n_task),fill_value=-1.0,dtype=float)
             for j in range(n_robot+n_task):
                 for k in range(j+1):
-                    astar_planner.resetNodes()
-                    path, costmat[j, k] = astar_planner.plan(points[j], points[k])
+                    # astar_planner.resetNodes()
+                    costmat[j, k] = astar_planner.plan(points[j], points[k],path_flag=False)
                     # 对称矩阵
                     costmat[k, j] = costmat[j, k]
 
