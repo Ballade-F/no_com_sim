@@ -61,7 +61,7 @@ class Robot:
         self.robot_data = np.zeros((self.n_robot, 3))# x, y, theta
         self.task_data = np.zeros((self.n_task, 3))# x, y, if_finished
         self.path = []
-        self.task_list = []
+        self.task_list = []# 任务序号
         self.robot_intention = np.full((self.n_robot), -1, dtype=int)
         
         # 控制
@@ -207,6 +207,20 @@ class Robot:
             if self.task_data[self.task_list[i]][2] == 1:
                 reallocation_flag = True
                 break
+
+        #构建cost_rt
+        cost_rt = np.zeros((self.n_robot, n_task_unfinished))
+        for i in range(self.n_robot):
+            for j in range(n_task_unfinished):
+                cost_rt[i,j] = self.path_planner.plan(self.robot_data[i][:2], self.task_data[taskidx_unfinished[j]][:2],
+                                                        grid_mode=False,path_flag=False)
+        #构建cost_t
+        cost_t = np.zeros((n_task_unfinished, n_task_unfinished))
+        for i in range(n_task_unfinished):
+            for j in range(i+1):
+                cost_t[i,j] = self.costmat[taskidx_unfinished[i],taskidx_unfinished[j]]
+                cost_t[j,i] = cost_t[i,j]
+
         if reallocation_flag:
             #选择出还未被完成的任务序号
             taskidx_unfinished = []
@@ -214,27 +228,42 @@ class Robot:
                 if self.task_data[i][2] == 0:
                     taskidx_unfinished.append(i)
             n_task_unfinished = len(taskidx_unfinished)
-            #构建cost_rt
-            cost_rt = np.zeros((self.n_robot, n_task_unfinished))
-            for i in range(self.n_robot):
-                for j in range(n_task_unfinished):
-                    cost_rt[i,j] = self.path_planner.plan(self.robot_data[i][:2], self.task_data[taskidx_unfinished[j]][:2],
-                                                          grid_mode=False,path_flag=False)
-            #构建cost_t
-            cost_t = np.zeros((n_task_unfinished, n_task_unfinished))
-            for i in range(n_task_unfinished):
-                for j in range(i+1):
-                    cost_t[i,j] = self.costmat[taskidx_unfinished[i],taskidx_unfinished[j]]
-                    cost_t[j,i] = cost_t[i,j]
+            
             #分配
-            self.task_list = self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]
+            # self.task_list = self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]
+            self.task_list =[taskidx_unfinished[idx] for idx in self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]]
             if len(self.task_list) == 0:
                 self.stop_flag = True
                 self.replan_flag = False
                 return
-            #冲突消解
-            # reallocation_flag = False
-
+        #冲突消解
+        reallocation_flag = False
+        while True:
+            if len(self.task_list)==0 :
+                self.stop_flag = True
+                self.replan_flag = False
+                return
+            #检查是否有其他机器人的任务比自己的任务更快
+            for i in range(self.n_robot):
+                if i == self.robot_id:
+                    continue
+                #意图相同
+                if self.task_list[0] == self.robot_intention[i] :
+                    task_id = self.task_list[0]
+                    unfinished_id = taskidx_unfinished.index(task_id)
+                    #代价还小于自己的代价
+                    if cost_rt[i,unfinished_id] < cost_rt[self.robot_id,unfinished_id]:
+                        reallocation_flag = True
+                        #将自己的任务分配给其他机器人，即将该值置为0
+                        cost_rt[i,unfinished_id] = 0
+                        break
+            #如果没有冲突，退出
+            if not reallocation_flag:
+                break
+            #如果有冲突，重新分配
+            else:
+                reallocation_flag = False
+                self.task_list =[taskidx_unfinished[idx] for idx in self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]]
 
         # TODO: 使用网络，给出一个选项：不用算整个路径，只要算下一个task是谁
     
