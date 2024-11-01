@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from copy import deepcopy
-
+import json
 
 import utils.map as mp
 import utils.ringbuffer as ringbuffer
@@ -28,25 +28,28 @@ import net.intention as intention
 #         self.data = np.zeros((n_task, 3))# x, y, if_finished
 
 class Robot:
-    def __init__(self, map:mp.Map, cfg_dir:str, device='cpu') -> None:
+    def __init__(self, map:mp.Map, cfg_dir:str) -> None:
     # 成员变量
+        with open(cfg_dir, "r") as f:
+            cfg = json.load(f)
+
         # 基本信息
-        self.robot_id = robot_id
+        self.robot_id = cfg["robot_id"]
+        self.robot_r = cfg["robot_r"]
+        self.device = cfg["device"]
+        self.n_robot = cfg["n_robot"]
+        self.n_task = cfg["n_task"]
+        self.n_rt = self.n_robot + self.n_task
+
         self.static_map = deepcopy(map)
         self.map = deepcopy(map)
-        self.robot_r = 0.2
         self.robot_r_idx = round(self.robot_r / map.resolution_x)
-        self.device = device
-        self.n_robot = n_robot
-        self.n_task = n_task
-        self.n_rt = n_robot + n_task
-
-        self.n_ob_points = n_ob_points
-        self.n_obstacle = n_obstacle
+        self.n_ob_points = map.n_ob_points
+        self.n_obstacle = map.n_obstacles
 
         # 感知决策
         
-        self.buffer_size = buffer_size
+        self.buffer_size = cfg["buffer_size"]
         self.buffer_robots = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为RobotData
         self.buffer_tasks = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为TaskData
         self.buffer_decisions = ringbuffer.RingBuffer(self.buffer_size)
@@ -64,6 +67,27 @@ class Robot:
         self.task_list = []# 任务序号
         self.robot_intention = np.full((self.n_robot), -1, dtype=int)
         
+    # 算法类实例与网络类实例
+        v_ave = cfg["v_ave"]
+        dt = cfg["dt"]
+        predict_time = cfg["predict_time"]
+        pos_factor = cfg["pos_factor"]
+        theta_factor = cfg["theta_factor"]
+        v_factor = cfg["v_factor"]
+        w_factor = cfg["w_factor"]
+        obstacle_factor = cfg["obstacle_factor"]
+        final_factor = cfg["final_factor"]
+        obstacle_r = cfg["obstacle_r"]
+        dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
+                           obstacle_r, self.map.resolution_x, self.map.resolution_y, self.map.grid_map,True,n_workers=4)
+        self.path_planner = path_planner.AStarPlanner(self.static_map.grid_map, self.static_map.resolution_x, self.static_map.resolution_y)
+        #TODO: 换成网络
+        self.task_allocation = greedy.GreedyTaskAllocationPlanner()
+        self.intention_judgment = intention.IntentionNet()
+        self.intention_judgment.config(cfg)
+        intention_model_dir = cfg["intention_model_dir"]
+        self.intention_judgment.load_state_dict(torch.load(intention_model_dir))
+
         # 控制
         self.x = 0
         self.y = 0
@@ -81,17 +105,6 @@ class Robot:
         self.replan_flag = False
         self.reallocation_flag = False
         self.stop_flag = False
-
-
-    # 算法类实例与网络类实例
-        dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
-                           obstacle_r, self.map.resolution_x, self.map.resolution_y, self.map.grid_map,True,n_workers=4)
-        self.path_planner = path_planner.AStarPlanner(self.static_map.grid_map, self.static_map.resolution_x, self.static_map.resolution_y)
-        #TODO: 换成网络
-        self.task_allocation = greedy.GreedyTaskAllocationPlanner()
-        self.intention_judgment = intention.IntentionNet()
-        self.intention_judgment.config(intention_config)
-        self.intention_judgment.load_state_dict(torch.load(intention_model_dir))
 
     # 初始化
         starts = map.starts_grid
