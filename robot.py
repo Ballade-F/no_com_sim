@@ -37,14 +37,16 @@ class Robot:
         self.robot_id = cfg["robot_id"]
         self.robot_r = cfg["robot_r"]
         self.device = cfg["device"]
-        self.n_robot = cfg["n_robot"]
-        self.n_task = cfg["n_task"]
-        self.n_rt = self.n_robot + self.n_task
+        
+        
 
         self.static_map = deepcopy(map)
         self.map = deepcopy(map)
         self.robot_r_idx = round(self.robot_r / map.resolution_x)
         self.n_ob_points = map.n_ob_points
+        self.n_robot = map.n_starts
+        self.n_task = map.n_tasks
+        self.n_rt = self.n_robot + self.n_task
         self.n_obstacle = map.n_obstacles
 
         # 感知决策
@@ -52,13 +54,13 @@ class Robot:
         self.buffer_size = cfg["buffer_size"]
         self.buffer_robots = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为RobotData
         self.buffer_tasks = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为TaskData
-        self.buffer_decisions = ringbuffer.RingBuffer(self.buffer_size)
-        self.target = []  # n_robot个元素，每个元素是一个任务的index
+        # self.buffer_decisions = ringbuffer.RingBuffer(self.buffer_size)
+        # self.target = []  # n_robot个元素，每个元素是一个任务的index
 
         # 归一化坐标
         self.feature_obstacle = torch.empty(self.n_obstacle, self.n_ob_points, 2, dtype=torch.float32, device=self.device)
         for i_ob in range(self.n_obstacle):
-            self.feature_obstacle[i_ob] = self.static_map.obstacles[i_ob]
+            self.feature_obstacle[i_ob] = torch.from_numpy(self.static_map.obstacles[i_ob])
         self.feature_obstacle = self.feature_obstacle.unsqueeze(0)# (1, n_obstacle, n_ob_points, 2)
 
         self.robot_data = np.zeros((self.n_robot, 3))# x, y, theta
@@ -84,9 +86,11 @@ class Robot:
         #TODO: 换成网络
         self.task_allocation = greedy.GreedyTaskAllocationPlanner()
         self.intention_judgment = intention.IntentionNet()
-        self.intention_judgment.config(cfg)
         intention_model_dir = cfg["intention_model_dir"]
-        self.intention_judgment.load_state_dict(torch.load(intention_model_dir))
+        self.intention_judgment.load_state_dict(torch.load(intention_model_dir, map_location=self.device))
+        self.intention_judgment.config({'n_robot':self.n_robot, 
+                                        'n_task':self.n_task, 
+                                        'n_obstacle':self.n_obstacle})
 
         # 控制
         self.x = 0
@@ -280,19 +284,23 @@ class Robot:
 
         # TODO: 使用网络，给出一个选项：不用算整个路径，只要算下一个task是谁
     
-
-    def control_callback(self):
-        self.updateState()
+    # output: (v, w)
+    def control_callback(self,robot_data, task_data):
+        self.updateState(robot_data, task_data)
         self.updatePlan()
-        self.updataControl()
-
-    def keyframe_callback(self):
-        self.updateState()
+        out = self.updataControl()
+        return out
+    
+    # output: (v, w)
+    def keyframe_callback(self,robot_data, task_data):
+        self.updateState(robot_data, task_data)
         self.updateKeyframe()
-        self.updateIntention()
+        if len(self.buffer_robots) == self.buffer_size:
+            self.updateIntention()
         self.updateDecision()
         self.updatePlan()
-        self.updataControl()
+        out = self.updataControl()
+        return out
 
 
 
@@ -300,9 +308,12 @@ class Robot:
 
 
 # 最小周期回调函数
-    def base_callback(self):
+# output: (v, w)
+    def base_callback(self,robot_data, task_data):
         self.counter_base += 1
+        out = None
         if self.counter_base % self.keyframe_counter == 0:
-            self.keyframe_callback()
+            out = self.keyframe_callback(robot_data, task_data)
         else :
-            self.control_callback()
+            out = self.control_callback(robot_data, task_data)
+        return out

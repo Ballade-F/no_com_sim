@@ -38,8 +38,8 @@ class _encoderBlock(nn.Module):
         
 
 class IntentionNet(nn.Module):
-    def __init__(self, ob_points:int, r_points:int,
-                 embedding_size:int, batch_size:int, attention_head:int,
+    def __init__(self, ob_points:int = 16, r_points:int = 5,
+                 embedding_size:int = 128, batch_size:int = 1, attention_head:int = 8,
                  feature_robot:int = 2, feature_task:int = 3, feature_ob:int = 2,
                  encoder_layer:int = 3, local_embed_layers:int=2, device='cpu'):
         super(IntentionNet, self).__init__()

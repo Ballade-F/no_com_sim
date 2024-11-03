@@ -2,8 +2,6 @@
     "robot_id": 0,
     "device" : "cpu",
     "robot_r" : 0.2,
-    "n_robot": 4,
-    "n_task": 0,
     "buffer_size": 5,
     "v_ave": 0.2,
     "dt": 0.1,
@@ -15,5 +13,5 @@
     "obstacle_factor": 20,
     "final_factor": 0.05,
     "obstacle_r": 0.4,
-    "intention_model_dir" : "model/intention_model"
+    "intention_model_dir" : "./net_model/intention/intention.pt"
 }
