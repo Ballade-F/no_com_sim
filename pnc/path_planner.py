@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import heapq
+import time as TM
 
 class astar_node():
     def __init__(self, x:int, y:int):
@@ -171,7 +172,12 @@ if __name__ == '__main__':
     grid_map[10:40, 25:75] = 0
     grid_map[60:90, 25:75] = 0
     astar_planner = AStarPlanner(grid_map,0.1,0.1)
-    path, dis = astar_planner.plan((30, 48), (70, 50))
+
+    time_1 = TM.time()
+    path, dis = astar_planner.plan((1, 1), (95, 95),False)
+    time_2 = TM.time()
+    print('time: ', time_2 - time_1)
+
     img = 255-grid_map*255
     img = img.transpose()
     print(dis)
