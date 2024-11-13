@@ -64,5 +64,21 @@ def test_multiprocess():
             print(temp)
     print('done')
 
+
+import logging
+import time
+
+def test_logging():
+    # logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(filename='/home/users/wzr/project/no_com_sim/log/time_{}.log'.format(time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())),
+                         level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logging.debug('This is a debug message')
+    logging.info('This is an info message')
+    logging.warning('This is a warning message')
+    logging.error('This is an error message')
+    logging.critical('This is a critical message')
+ 
+
 if __name__ == '__main__':
-    test_multiprocess()
+    # test_multiprocess()
+    test_logging()

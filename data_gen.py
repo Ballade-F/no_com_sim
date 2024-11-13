@@ -8,6 +8,8 @@ import utils.map as mp
 import pnc.path_planner as path_planner
 from task_allocation import hungarian ,greedy_allocation_lib
 import time as TM
+import logging
+
 from concurrent.futures import ProcessPoolExecutor
 
 
@@ -59,8 +61,8 @@ class AllocationDatasetGen():
             costmat = np.full((n_robot+n_task, n_robot+n_task),fill_value=-1.0,dtype=float)
             for j in range(n_robot+n_task):
                 for k in range(j+1):
-                    astar_planner.resetNodes()
-                    path, costmat[j, k] = astar_planner.plan(points[j], points[k])
+                    # astar_planner.resetNodes()
+                    costmat[j, k] = astar_planner.plan(points[j], points[k],path_flag=False)
                     # 对称矩阵
                     costmat[k, j] = costmat[j, k]
 
@@ -115,7 +117,7 @@ class AllocationDatasetGen():
 
             for future in futures:
                 future.result()
-                # print(f"Process {i+1}/{self.n_batch} completed")
+                logging.info(f"Allocation Process {i+1}/{self.n_batch} completed")
 
 
 class IntentionDatasetGen():
@@ -304,7 +306,7 @@ class IntentionDatasetGen():
 
             for future in futures:
                 future.result()
-                # print(f"Process {i+1}/{self.n_scale} completed")
+                logging.info(f"Intention Process {i+1}/{self.n_scale} completed")
 
 
 
@@ -334,15 +336,21 @@ if __name__ == '__main__':
     ob_points = mp.n_ob_points
     n_workers = 64
 
+    logging.basicConfig(filename='/home/users/wzr/project/no_com_sim/log/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+                         level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    logging.info('BEGIN')
 
     allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
                                                   n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
     allocation_dataset_gen.AllocationDatasetGen()
-    print("Allocation dataset generated")
+
+    logging.info('allocation dataset done')
+
     intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
                                                 n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
     intention_dataset_gen.IntentionDatasetGen()
-    print("Intention dataset generated")
+    logging.info('intention dataset done')
 
 
     

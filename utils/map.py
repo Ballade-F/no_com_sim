@@ -14,8 +14,9 @@ n_ob_points = 16
 
 # Store coordinates in a normalized manner
 class Map():
-    def __init__(self, n_obstacles:int, n_starts:int, n_tasks:int, n_x:int, n_y:int, resolution_x:float, resolution_y:float):
+    def __init__(self, n_obstacles:int, n_starts:int, n_tasks:int, n_x:int, n_y:int, resolution_x:float, resolution_y:float, n_ob_points:int=16):
         self.n_obstacles = n_obstacles
+        self.n_ob_points = n_ob_points
         self.n_starts = n_starts
         self.n_tasks = n_tasks
         self.n_x = n_x
