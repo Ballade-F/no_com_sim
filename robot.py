@@ -80,7 +80,7 @@ class Robot:
         obstacle_factor = cfg["obstacle_factor"]
         final_factor = cfg["final_factor"]
         obstacle_r = cfg["obstacle_r"]
-        dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
+        self.dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
                            obstacle_r, self.map.resolution_x, self.map.resolution_y, self.map.grid_map,True,n_workers=4)
         self.path_planner = path_planner.AStarPlanner(self.static_map.grid_map, self.static_map.resolution_x, self.static_map.resolution_y)
         #TODO: 换成网络
@@ -201,8 +201,8 @@ class Robot:
         task_traj = torch.empty(self.n_task, self.buffer_size, 3,dtype=torch.float32, device=self.device)
         for i in range(self.buffer_size):
             # intention网络里面 0号是最老的，buffer里面0号是最新的
-            robot_traj[:,i,:] = self.buffer_robots[self.buffer_size-i-1][:,:2]
-            task_traj[:,i,:] = self.buffer_tasks[self.buffer_size-i-1][:,:]
+            robot_traj[:,i,:] = self.buffer_robots[self.buffer_size-i-1][:][:2]
+            task_traj[:,i,:] = self.buffer_tasks[self.buffer_size-i-1][:][:]
         robot_traj = robot_traj.unsqueeze(0)# (1, n_robot, buffer_size, 2)
         task_traj = task_traj.unsqueeze(0)# (1, n_task, buffer_size, 3)
         intentionProba_rt = self.intention_judgment(robot_traj, task_traj, self.feature_obstacle,is_train=False)# (1, n_robot, n_task)
@@ -225,37 +225,23 @@ class Robot:
                 reallocation_flag = True
                 break
 
-        #构建cost_rt
-        cost_rt = np.zeros((self.n_robot, n_task_unfinished))
-        for i in range(self.n_robot):
-            for j in range(n_task_unfinished):
-                cost_rt[i,j] = self.path_planner.plan(self.robot_data[i][:2], self.task_data[taskidx_unfinished[j]][:2],
-                                                        grid_mode=False,path_flag=False)
-        #构建cost_t
-        cost_t = np.zeros((n_task_unfinished, n_task_unfinished))
-        for i in range(n_task_unfinished):
-            for j in range(i+1):
-                cost_t[i,j] = self.costmat[taskidx_unfinished[i],taskidx_unfinished[j]]
-                cost_t[j,i] = cost_t[i,j]
+        cost_rt = None
+        cost_t = None
+        taskidx_unfinished = None
 
         if reallocation_flag:
-            #选择出还未被完成的任务序号
-            taskidx_unfinished = []
-            for i in range(self.n_task):
-                if self.task_data[i][2] == 0:
-                    taskidx_unfinished.append(i)
-            n_task_unfinished = len(taskidx_unfinished)
-            
-            #分配
-            # self.task_list = self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]
-            self.task_list =[taskidx_unfinished[idx] for idx in self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]]
+            #重分配
+            cost_rt, cost_t, taskidx_unfinished = self._reallocation()
             if len(self.task_list) == 0:
                 self.stop_flag = True
                 self.replan_flag = False
                 return
         #冲突消解
-        reallocation_flag = False
+        
         while True:
+            conflict_flag = False
+            task_un_id=-1
+            robot_conflict_id=-1
             if len(self.task_list)==0 :
                 self.stop_flag = True
                 self.replan_flag = False
@@ -267,22 +253,60 @@ class Robot:
                 #意图相同
                 if self.task_list[0] == self.robot_intention[i] :
                     task_id = self.task_list[0]
-                    unfinished_id = taskidx_unfinished.index(task_id)
-                    #代价还小于自己的代价
-                    if cost_rt[i,unfinished_id] < cost_rt[self.robot_id,unfinished_id]:
-                        reallocation_flag = True
-                        #将自己的任务分配给其他机器人，即将该值置为0
-                        cost_rt[i,unfinished_id] = 0
+                    cost_other = self.path_planner.plan(self.robot_data[i][:2], self.task_data[task_id][:2],
+                                                        grid_mode=False,path_flag=False)
+                    cost_self = self.path_planner.plan(self.robot_data[self.robot_id][:2], self.task_data[task_id][:2],
+                                                        grid_mode=False,path_flag=False)
+                    #代价还小于自己的代价,冲突
+                    if cost_other < cost_self:
+                        conflict_flag = True
+                        robot_conflict_id = i
+                        #找到该task在未完成任务中的序号，用于修改cost_rt
+                        task_un_id = taskidx_unfinished.index(task_id)
                         break
             #如果没有冲突，退出
-            if not reallocation_flag:
+            if not conflict_flag:
                 break
-            #如果有冲突，重新分配
+            #如果有冲突，重新分配;如果已经重分配过，修改矩阵
+            elif reallocation_flag:
+                #让出任务
+                cost_rt[robot_conflict_id,task_un_id] = 0
+                #重新分配
+                task_temp = self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]
+                self.task_list =[taskidx_unfinished[idx] for idx in task_temp]
+            #如果没有重分配过，计算矩阵
             else:
-                reallocation_flag = False
-                self.task_list =[taskidx_unfinished[idx] for idx in self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]]
+                cost_rt, cost_t, taskidx_unfinished = self._reallocation()
+                reallocation_flag = True
+                
+    def _reallocation(self):
+        #选择出还未被完成的任务序号
+        _taskidx_unfinished = []
+        for i in range(self.n_task):
+            if self.task_data[i][2] == 0:
+                _taskidx_unfinished.append(i)
+        n_task_unfinished = len(_taskidx_unfinished)
 
-        # TODO: 使用网络，给出一个选项：不用算整个路径，只要算下一个task是谁
+        #构建cost_rt
+        cost_rt = np.zeros((self.n_robot, n_task_unfinished))
+        for i in range(self.n_robot):
+            for j in range(n_task_unfinished):
+                cost_rt[i,j] = self.path_planner.plan(self.robot_data[i][:2], self.task_data[_taskidx_unfinished[j]][:2],
+                                                        grid_mode=False,path_flag=False)
+        #构建cost_t
+        cost_t = np.zeros((n_task_unfinished, n_task_unfinished))
+        for i in range(n_task_unfinished):
+            for j in range(i+1):
+                cost_t[i,j] = self.costmat[_taskidx_unfinished[i],_taskidx_unfinished[j]]
+                cost_t[j,i] = cost_t[i,j]
+        
+        #分配
+        # self.task_list = self.task_allocation.allocate(cost_rt, cost_t)[self.robot_id]
+        task_temp = self.task_allocation.greedy_allocate_mat(cost_rt, cost_t)[self.robot_id]
+        self.task_list =[_taskidx_unfinished[idx] for idx in task_temp]
+
+        return cost_rt, cost_t, _taskidx_unfinished
+        
     
     # output: (v, w)
     def control_callback(self,robot_data, task_data):
