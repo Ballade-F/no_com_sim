@@ -63,25 +63,19 @@ def test_robot_2():
     # map_data.plot()
     # map_data.plotGrid()
 
-    #state
+    #state 真实坐标
     robot_state = np.zeros((n_robot,5))
     task_state = np.zeros((n_task,3))
     for i in range(n_robot):
-        # state = np.array([map_data.starts[i][0]*map_data.n_x*map_data.resolution_x, 
-        #                   map_data.starts[i][1]*map_data.n_y*map_data.resolution_y, 
-        #                   -math.pi, 0.0, 0.0])
-        # robot_state.append(state)
         robot_state[i] = np.array([map_data.starts[i][0]*map_data.n_x*map_data.resolution_x, 
                           map_data.starts[i][1]*map_data.n_y*map_data.resolution_y, 
                           -math.pi, 0.0, 0.0])
     for i in range(n_task):
-        # state = np.array([map_data.tasks[i][0]*map_data.n_x*map_data.resolution_x, 
-        #                   map_data.tasks[i][1]*map_data.n_y*map_data.resolution_y, 
-        #                   0])
-        # task_state.append(state)
         task_state[i] = np.array([map_data.tasks[i][0]*map_data.n_x*map_data.resolution_x, 
                           map_data.tasks[i][1]*map_data.n_y*map_data.resolution_y, 
                           0])
+    # print('robot_state:', robot_state)
+    # print('task_state:', task_state)
 
     #robot
     cfg_0 = os.path.join(config_dir, 'robot_0.json')
@@ -91,7 +85,7 @@ def test_robot_2():
 
     #sim
     for i_step in range(sim_steps):
-        #arrived
+        #arrived 真实坐标
         task_finish_count = 0
         for j in range(n_task):
             if task_state[j][2] == 1:
@@ -108,15 +102,15 @@ def test_robot_2():
             break
     
 
-        #robot
-        out_0 = robot_0.base_callback(robot_state,task_state)
-        # out_1 = robot_1.base_callback(robot_state,task_state)
+    #     #robot
+    #     out_0 = robot_0.base_callback(robot_state,task_state)
+    #     # out_1 = robot_1.base_callback(robot_state,task_state)
 
-        #update robot state
-        robot_state[0] = _state_update(robot_state[0], out_0, dt)
-        # robot_state[1] = _state_update(robot_state[1], out_1, dt)
+    #     #update robot state
+    #     robot_state[0] = _state_update(robot_state[0], out_0, dt)
+    #     # robot_state[1] = _state_update(robot_state[1], out_1, dt)
 
-        print('robot_0:', robot_state[0], 'robot_1:', robot_state[1])
+    #     print('robot_0:', robot_state[0], 'robot_1:', robot_state[1])
             
   
 

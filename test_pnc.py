@@ -69,7 +69,7 @@ def test_dwa():
     grid_map = map_data.grid_map
 
     dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
-                           obstacle_r, resolution_x, resolution_y, grid_map,True,n_workers=4)
+                           obstacle_r, resolution_x, resolution_y, grid_map,False,n_workers=4)
     counter = 0
     path_dwa = []
     plot_u = []

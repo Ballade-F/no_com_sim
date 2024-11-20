@@ -174,7 +174,7 @@ class AStarPlanner():
                     heapq.heapify(open_list)
                 
         if path_flag == False:
-            return goal_node.g
+            return self.n_x*self.n_y*(self.resolution_x+self.resolution_y)
         return [(start[0], start[1])], self.n_x*self.n_y*(self.resolution_x+self.resolution_y)
 
     

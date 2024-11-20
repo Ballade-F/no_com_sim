@@ -17,37 +17,10 @@ import net.allocation as allocation
 import net.intention as intention
 
 
-# class RobotData():
-#     def __init__(self, n_robot) -> None:
-#         self.n_robot = n_robot
-#         self.data = np.zeros((n_robot, 3))# x, y, theta
-
-# class TaskData():
-#     def __init__(self, n_task) -> None:
-#         self.n_task = n_task
-#         self.data = np.zeros((n_task, 3))# x, y, if_finished
-
 class Robot:
     def __init__(self, map:mp.Map, cfg_dir:str) -> None:
     # 成员变量
-        with open(cfg_dir, "r") as f:
-            cfg = json.load(f)
-
-        # 基本信息
-        self.robot_id = cfg["robot_id"]
-        self.robot_r = cfg["robot_r"]
-        self.device = cfg["device"]
         
-        
-
-        self.static_map = deepcopy(map)
-        self.map = deepcopy(map)
-        self.robot_r_idx = round(self.robot_r / map.resolution_x)
-        self.n_ob_points = map.n_ob_points
-        self.n_robot = map.n_starts
-        self.n_task = map.n_tasks
-        self.n_rt = self.n_robot + self.n_task
-        self.n_obstacle = map.n_obstacles
 
         # 感知决策
         
@@ -63,9 +36,8 @@ class Robot:
             self.feature_obstacle[i_ob] = torch.from_numpy(self.static_map.obstacles[i_ob])
         self.feature_obstacle = self.feature_obstacle.unsqueeze(0)# (1, n_obstacle, n_ob_points, 2)
 
-        self.robot_data = np.zeros((self.n_robot, 3))# x, y, theta
-        self.task_data = np.zeros((self.n_task, 3))# x, y, if_finished
-        self.path = []
+        
+        
         self.task_list = []# 任务序号
         self.robot_intention = np.full((self.n_robot), -1, dtype=int)
         
@@ -92,12 +64,7 @@ class Robot:
                                         'n_task':self.n_task, 
                                         'n_obstacle':self.n_obstacle})
 
-        # 控制
-        self.x = 0
-        self.y = 0
-        self.theta = 0
-        self.w = 0
-        self.v = 0
+        
 
         # 调度用的标志量
         self.base_T = 0.1  # 最小调度周期，控制与感知周期
@@ -122,12 +89,78 @@ class Robot:
                 self.costmat[j, k] = self.path_planner.plan(points[j], points[k],path_flag=False)
                 # 对称矩阵
                 self.costmat[k, j] = self.costmat[j, k]
+    
+    #重新整理
+    # 外部输入，实际坐标    
+        self.robot_data = np.zeros((self.n_robot, 3))# x, y, theta
+        self.task_data = np.zeros((self.n_task, 3))# x, y, if_finished
+    # 基本信息
+        with open(cfg_dir, "r") as f:
+            cfg = json.load(f)
+        self.robot_id = cfg["robot_id"]
+        self.robot_r = cfg["robot_r"]  # 机器人占用半径
+        self.device = cfg["device"]
+        self.static_map = deepcopy(map) # 静态地图，A*用
+        self.map = deepcopy(map)        # 动态地图，DWA用
+        self.robot_r_idx = round(self.robot_r / map.resolution_x) # 机器人半径对应的网格数
+        self.n_ob_points = map.n_ob_points # 障碍物多边形边数
+        self.n_robot = map.n_starts
+        self.n_task = map.n_tasks
+        self.n_rt = self.n_robot + self.n_task
+        self.n_obstacle = map.n_obstacles
+    # 控制,x,y,theta从感知获取，v,w从控制获取,都是实际坐标，角度为弧度，速度为m/s
+        self.x = 0
+        self.y = 0
+        self.theta = 0
+        self.w = 0
+        self.v = 0
+    # 规划，实际坐标
+        self.path = []
+
+# 回调函数
+    def base_callback(self,robot_data, task_data):
+        '''
+        最小周期回调函数    
+        robot_data: ndarray((n_robot,5)), 真实坐标  
+        task_data: ndarray((n_task,3))，真实坐标   
+        return: (v, w) 
+        '''
+        self.counter_base += 1
+        out = None
+        if self.counter_base % self.keyframe_counter == 0:
+            out = self.keyframe_callback(robot_data, task_data)
+        else :
+            out = self.control_callback(robot_data, task_data)
+        return out
+    
+    # output: (v, w)
+    def control_callback(self,robot_data, task_data):
+        self.updateState(robot_data, task_data)
+        self.updatePlan()
+        out = self.updataControl()
+        return out
+    
+    # output: (v, w)
+    def keyframe_callback(self,robot_data, task_data):
+        self.updateState(robot_data, task_data)
+        self.updateKeyframe()
+        if len(self.buffer_robots) == self.buffer_size:
+            self.updateIntention()
+        self.updateDecision()
+        self.updatePlan()
+        out = self.updataControl()
+        return out
 
 
 
     # 用感知信息更新状态
     def updateState(self, robot_data, task_data):
+        '''
+        robot_data: ndarray((n_robot,5)), 真实坐标  
+        task_data: ndarray((n_task,3))，真实坐标    
+        '''
         # 更新机器人占用的地图
+        # 恢复上一次占用
         for i in range(self.n_robot):
             x_idx = int(self.robot_data[i][0]/self.map.resolution_x)
             y_idx = int(self.robot_data[i][1]/self.map.resolution_y)
@@ -137,6 +170,7 @@ class Robot:
                     grid_y = max(0, min(y_idx+k, self.map.n_y-1))
                     if self.static_map.grid_map[grid_x][grid_y] == 0:
                         self.map.grid_map[grid_x][grid_y] = 0
+        # 更新当前占用
         self.robot_data = robot_data
         for i in range(self.n_robot):
             if i == self.robot_id:
@@ -156,26 +190,26 @@ class Robot:
 
         # 更新任务状态
         self.task_data = task_data
-        # 只关注最近一个任务
+        # 只关注最近一个任务，任务点改变时，重新规划
         while len(self.task_list) > 0:
             if self.task_data[self.task_list[0]][2] == 1:
                 self.task_list.pop(0)
                 self.replan_flag = True
             else:
                 break
+        # 任务列表为空，停止
         if len(self.task_list) == 0:
             self.stop_flag = True
             self.replan_flag = False
 
+    # A*规划路径
     def updatePlan(self):
         if self.replan_flag:
-            # _start = self.map.true2grid([self.x, self.y])
-            # _task = self.map.true2grid([self.task_data[self.task_list[0]][0], self.task_data[self.task_list[0]][1]])
             _start = [self.x, self.y]
             _task = [self.task_data[self.task_list[0]][0], self.task_data[self.task_list[0]][1]]
-            self.path,_cost = self.path_planner.plan(_start, _task, reset_nodes=True, grid_mode=False)
+            self.path,_cost = self.path_planner.plan(_start, _task, reset_nodes=True, grid_mode=False) #输入实际坐标，输出实际坐标
             self.replan_flag = False
-            self.stop_flag = False
+            # 无法到达
             if len(self.path) == 1:
                 self.stop_flag = True
                     
@@ -308,36 +342,11 @@ class Robot:
         return cost_rt, cost_t, _taskidx_unfinished
         
     
-    # output: (v, w)
-    def control_callback(self,robot_data, task_data):
-        self.updateState(robot_data, task_data)
-        self.updatePlan()
-        out = self.updataControl()
-        return out
-    
-    # output: (v, w)
-    def keyframe_callback(self,robot_data, task_data):
-        self.updateState(robot_data, task_data)
-        self.updateKeyframe()
-        if len(self.buffer_robots) == self.buffer_size:
-            self.updateIntention()
-        self.updateDecision()
-        self.updatePlan()
-        out = self.updataControl()
-        return out
 
 
 
 
 
 
-# 最小周期回调函数
-# output: (v, w)
-    def base_callback(self,robot_data, task_data):
-        self.counter_base += 1
-        out = None
-        if self.counter_base % self.keyframe_counter == 0:
-            out = self.keyframe_callback(robot_data, task_data)
-        else :
-            out = self.control_callback(robot_data, task_data)
-        return out
+
+
