@@ -18,82 +18,9 @@ import net.intention as intention
 
 
 class Robot:
-    def __init__(self, map:mp.Map, cfg_dir:str) -> None:
+    def __init__(self, map:mp.Map, cfg_dir:str,robot_init_state,task_init_state) -> None:
     # 成员变量
-        
-
-        # 感知决策
-        
-        self.buffer_size = cfg["buffer_size"]
-        self.buffer_robots = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为RobotData
-        self.buffer_tasks = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为TaskData
-        # self.buffer_decisions = ringbuffer.RingBuffer(self.buffer_size)
-        # self.target = []  # n_robot个元素，每个元素是一个任务的index
-
-        # 归一化坐标
-        self.feature_obstacle = torch.empty(self.n_obstacle, self.n_ob_points, 2, dtype=torch.float32, device=self.device)
-        for i_ob in range(self.n_obstacle):
-            self.feature_obstacle[i_ob] = torch.from_numpy(self.static_map.obstacles[i_ob])
-        self.feature_obstacle = self.feature_obstacle.unsqueeze(0)# (1, n_obstacle, n_ob_points, 2)
-
-        
-        
-        self.task_list = []# 任务序号
-        self.robot_intention = np.full((self.n_robot), -1, dtype=int)
-        
-    # 算法类实例与网络类实例
-        v_ave = cfg["v_ave"]
-        dt = cfg["dt"]
-        predict_time = cfg["predict_time"]
-        pos_factor = cfg["pos_factor"]
-        theta_factor = cfg["theta_factor"]
-        v_factor = cfg["v_factor"]
-        w_factor = cfg["w_factor"]
-        obstacle_factor = cfg["obstacle_factor"]
-        final_factor = cfg["final_factor"]
-        obstacle_r = cfg["obstacle_r"]
-        self.dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
-                           obstacle_r, self.map.resolution_x, self.map.resolution_y, self.map.grid_map,True,n_workers=4)
-        self.path_planner = path_planner.AStarPlanner(self.static_map.grid_map, self.static_map.resolution_x, self.static_map.resolution_y)
-        #TODO: 换成网络
-        self.task_allocation = greedy.GreedyTaskAllocationPlanner()
-        self.intention_judgment = intention.IntentionNet()
-        intention_model_dir = cfg["intention_model_dir"]
-        self.intention_judgment.load_state_dict(torch.load(intention_model_dir, map_location=self.device))
-        self.intention_judgment.config({'n_robot':self.n_robot, 
-                                        'n_task':self.n_task, 
-                                        'n_obstacle':self.n_obstacle})
-
-        
-
-        # 调度用的标志量
-        self.base_T = 0.1  # 最小调度周期，控制与感知周期
-        self.keyframe_counter = 5  # 关键帧周期数
-        # self.decision_counter = 25  # 决策周期数
-
-        self.counter_base = 0
-
-        self.replan_flag = False
-        self.reallocation_flag = False
-        self.stop_flag = False
-
-    # 初始化
-        starts = map.starts_grid
-        tasks = map.tasks_grid
-        points = np.concatenate((starts, tasks), axis=0)
-        # 下三角矩阵
-        self.costmat = np.full((self.n_rt, self.n_rt),fill_value=-1.0,dtype=float)
-        for j in range(self.n_rt):
-            for k in range(j+1):
-                # astar_planner.resetNodes()
-                self.costmat[j, k] = self.path_planner.plan(points[j], points[k],path_flag=False)
-                # 对称矩阵
-                self.costmat[k, j] = self.costmat[j, k]
-    
     #重新整理
-    # 外部输入，实际坐标    
-        self.robot_data = np.zeros((self.n_robot, 3))# x, y, theta
-        self.task_data = np.zeros((self.n_task, 3))# x, y, if_finished
     # 基本信息
         with open(cfg_dir, "r") as f:
             cfg = json.load(f)
@@ -108,14 +35,78 @@ class Robot:
         self.n_task = map.n_tasks
         self.n_rt = self.n_robot + self.n_task
         self.n_obstacle = map.n_obstacles
+    # 外部输入，实际坐标    
+        # self.robot_data = np.zeros((self.n_robot, 3))# x, y, theta
+        # self.task_data = np.zeros((self.n_task, 3))# x, y, if_finished
+        self.robot_data = robot_init_state.copy()
+        self.task_data = task_init_state.copy()
     # 控制,x,y,theta从感知获取，v,w从控制获取,都是实际坐标，角度为弧度，速度为m/s
-        self.x = 0
-        self.y = 0
-        self.theta = 0
+        self.x = self.robot_data[self.robot_id][0]
+        self.y = self.robot_data[self.robot_id][1]
+        self.theta = self.robot_data[self.robot_id][2]
         self.w = 0
         self.v = 0
+        v_ave = cfg["v_ave"]
+        dt = cfg["dt"]
+        predict_time = cfg["predict_time"]
+        pos_factor = cfg["pos_factor"]
+        theta_factor = cfg["theta_factor"]
+        v_factor = cfg["v_factor"]
+        w_factor = cfg["w_factor"]
+        obstacle_factor = cfg["obstacle_factor"]
+        final_factor = cfg["final_factor"]
+        obstacle_r = cfg["obstacle_r"]
+        self.dwa_planner = dwa.DWA(v_ave, dt, predict_time, pos_factor, theta_factor, v_factor, w_factor, obstacle_factor,final_factor,
+                           obstacle_r, self.map.resolution_x, self.map.resolution_y, self.map.grid_map,True,n_workers=4)
     # 规划，实际坐标
         self.path = []
+        self.path_planner = path_planner.AStarPlanner(self.static_map.grid_map, self.static_map.resolution_x, self.static_map.resolution_y)
+        
+    # 意图判断
+        self.buffer_size = cfg["buffer_size"]
+        self.buffer_robots = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为np.ndarray((n_robot,3))
+        self.buffer_tasks = ringbuffer.RingBuffer(self.buffer_size) # 其中元素类型为np.ndarray((n_robot,3))
+        # 归一化坐标,x_ob: (batch, n_obstacle, ob_points, 2)
+        self.feature_obstacle = torch.empty(1, self.n_obstacle, self.n_ob_points, 2, dtype=torch.float32, device=self.device)
+        for i_ob in range(self.n_obstacle):
+            self.feature_obstacle[0,i_ob] = torch.from_numpy(self.static_map.obstacles[i_ob])
+
+        self.robot_intention = np.full((self.n_robot), -1, dtype=int)
+
+        self.intention_judgment = intention.IntentionNet()
+        intention_model_dir = cfg["intention_model_dir"]
+        self.intention_judgment.load_state_dict(torch.load(intention_model_dir, map_location=self.device))
+        self.intention_judgment.config({'n_robot':self.n_robot, 
+                                        'n_task':self.n_task, 
+                                        'n_obstacle':self.n_obstacle})
+        
+    # 任务分配
+        self.task_list = []# 任务序号
+        #TODO: 换成网络
+        self.task_allocation = greedy.GreedyTaskAllocationPlanner()
+
+    # 调度用的标志量
+        self.base_T = 0.1  # 最小调度周期，控制与感知周期
+        self.keyframe_counter = 5  # 关键帧周期数
+        # self.decision_counter = 25  # 决策周期数
+        self.counter_base = 0
+        self.replan_flag = False
+        self.stop_flag = False
+
+    # 初始化
+        self.updateKeyframe()
+        # 下三角矩阵
+        self.costmat = np.full((self.n_task, self.n_task),fill_value=-1.0,dtype=float)
+        for j in range(self.n_task):
+            for k in range(j+1):
+                # astar_planner.resetNodes()
+                self.costmat[j, k] = self.path_planner.plan(map.tasks_grid[j], map.tasks_grid[k],path_flag=False)
+                # 对称矩阵
+                self.costmat[k, j] = self.costmat[j, k]
+        # 初始化任务列表
+        self._reallocation()
+    
+    
 
 # 回调函数
     def base_callback(self,robot_data, task_data):
@@ -127,10 +118,11 @@ class Robot:
         '''
         self.counter_base += 1
         out = None
-        if self.counter_base % self.keyframe_counter == 0:
-            out = self.keyframe_callback(robot_data, task_data)
-        else :
-            out = self.control_callback(robot_data, task_data)
+        # if self.counter_base % self.keyframe_counter == 0:
+        #     out = self.keyframe_callback(robot_data, task_data)
+        # else :
+        #     out = self.control_callback(robot_data, task_data)
+        out = self.control_callback(robot_data, task_data)
         return out
     
     # output: (v, w)
@@ -156,7 +148,7 @@ class Robot:
     # 用感知信息更新状态
     def updateState(self, robot_data, task_data):
         '''
-        robot_data: ndarray((n_robot,5)), 真实坐标  
+        robot_data: ndarray((n_robot,3)), 真实坐标  
         task_data: ndarray((n_task,3))，真实坐标    
         '''
         # 更新机器人占用的地图
@@ -171,7 +163,7 @@ class Robot:
                     if self.static_map.grid_map[grid_x][grid_y] == 0:
                         self.map.grid_map[grid_x][grid_y] = 0
         # 更新当前占用
-        self.robot_data = robot_data
+        self.robot_data = robot_data.copy()
         for i in range(self.n_robot):
             if i == self.robot_id:
                 continue
@@ -189,7 +181,7 @@ class Robot:
         self.theta = self.robot_data[self.robot_id][2]
 
         # 更新任务状态
-        self.task_data = task_data
+        self.task_data = task_data.copy()
         # 只关注最近一个任务，任务点改变时，重新规划
         while len(self.task_list) > 0:
             if self.task_data[self.task_list[0]][2] == 1:
@@ -231,14 +223,24 @@ class Robot:
         self.buffer_tasks.push(self.task_data)
 
     def updateIntention(self):
-        robot_traj = torch.empty(self.n_robot, self.buffer_size, 2,dtype=torch.float32, device=self.device)
-        task_traj = torch.empty(self.n_task, self.buffer_size, 3,dtype=torch.float32, device=self.device)
+        #x_r: (batch, n_robot,r_points, 2), x_t: (batch, self.n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2)
+        robot_traj = torch.empty(1, self.n_robot, self.buffer_size, 2,dtype=torch.float32, device=self.device)
         for i in range(self.buffer_size):
-            # intention网络里面 0号是最老的，buffer里面0号是最新的
-            robot_traj[:,i,:] = self.buffer_robots[self.buffer_size-i-1][:][:2]
-            task_traj[:,i,:] = self.buffer_tasks[self.buffer_size-i-1][:][:]
-        robot_traj = robot_traj.unsqueeze(0)# (1, n_robot, buffer_size, 2)
-        task_traj = task_traj.unsqueeze(0)# (1, n_task, buffer_size, 3)
+            # intention网络里面 0号是最老的，buffer里面0号是最新的，并归一化
+            robot_traj[0,:,i,0] = torch.from_numpy(self.buffer_robots[i][:,0]) / (self.map.n_x*self.map.resolution_x)
+            robot_traj[0,:,i,1] = torch.from_numpy(self.buffer_robots[i][:,1]) / (self.map.n_y*self.map.resolution_y)
+        #将第2维度翻转
+        robot_traj = torch.flip(robot_traj, [2]) 
+
+        #最后一个task是虚拟task，用于结束任务的robot
+        task_traj = torch.empty(1, self.n_task+1, 3,dtype=torch.float32, device=self.device)
+        task_traj[0,-1,0] = -1
+        task_traj[0,-1,1] = -1
+        task_traj[0,-1,2] = 0
+        task_traj[0,:-1,2] = torch.from_numpy(self.buffer_tasks[0][:,2])
+        task_traj[0,:-1,0] = torch.from_numpy(self.buffer_tasks[0][:,0]) / (self.map.n_x*self.map.resolution_x)
+        task_traj[0,:-1,1] = torch.from_numpy(self.buffer_tasks[0][:,1]) / (self.map.n_y*self.map.resolution_y)
+        
         intentionProba_rt = self.intention_judgment(robot_traj, task_traj, self.feature_obstacle,is_train=False)# (1, n_robot, n_task)
         # 选择概率最大的任务，如果没有任务，选择n_task
         for i in range(self.n_robot):
@@ -248,7 +250,7 @@ class Robot:
         
     
     def updateDecision(self):
-        # 使用贪心
+        #重分配标志
         reallocation_flag = False
         #列表为空
         if len(self.task_list) == 0:
@@ -312,6 +314,11 @@ class Robot:
             else:
                 cost_rt, cost_t, taskidx_unfinished = self._reallocation()
                 reallocation_flag = True
+        
+        #没有冲突，直接执行
+        self.stop_flag = False
+        if reallocation_flag:
+            self.replan_flag = True
                 
     def _reallocation(self):
         #选择出还未被完成的任务序号

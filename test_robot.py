@@ -79,9 +79,9 @@ def test_robot_2():
 
     #robot
     cfg_0 = os.path.join(config_dir, 'robot_0.json')
-    robot_0 = Robot(map_data, cfg_0)
+    robot_0 = Robot(map_data, cfg_0,robot_state[:,:3],task_state)
     cfg_1 = os.path.join(config_dir, 'robot_1.json')
-    robot_1 = Robot(map_data, cfg_1)    
+    robot_1 = Robot(map_data, cfg_1,robot_state[:,:3],task_state)    
 
     #sim
     for i_step in range(sim_steps):
@@ -102,15 +102,15 @@ def test_robot_2():
             break
     
 
-    #     #robot
-    #     out_0 = robot_0.base_callback(robot_state,task_state)
-    #     # out_1 = robot_1.base_callback(robot_state,task_state)
+        #robot
+        out_0 = robot_0.base_callback(robot_state[:,:3],task_state)
+        # out_1 = robot_1.base_callback(robot_state,task_state)
 
-    #     #update robot state
-    #     robot_state[0] = _state_update(robot_state[0], out_0, dt)
-    #     # robot_state[1] = _state_update(robot_state[1], out_1, dt)
+        #update robot state
+        robot_state[0] = _state_update(robot_state[0], out_0, dt)
+        # robot_state[1] = _state_update(robot_state[1], out_1, dt)
 
-    #     print('robot_0:', robot_state[0], 'robot_1:', robot_state[1])
+        print('robot_0:', robot_state[0], 'robot_1:', robot_state[1])
             
   
 
