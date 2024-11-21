@@ -105,6 +105,7 @@ class Robot:
                 self.costmat[k, j] = self.costmat[j, k]
         # 初始化任务列表
         self._reallocation()
+        print("robot ",self.robot_id," task_list: ",self.task_list)
     
     
 

@@ -18,6 +18,7 @@ import task_allocation.ga_allocation_lib as ga
 import allocation
 import intention
 from robot import Robot
+import matplotlib.pyplot as plt
 
 
 
@@ -48,7 +49,7 @@ def test_robot_2():
     resolution_y = 0.1
 
     arrival_r = 0.1
-    sim_steps = 1000
+    sim_steps = 100
     dt = 0.1
 
     seed = 2
@@ -84,6 +85,7 @@ def test_robot_2():
     robot_1 = Robot(map_data, cfg_1,robot_state[:,:3],task_state)    
 
     #sim
+    path_robot_0 = []
     for i_step in range(sim_steps):
         #arrived 真实坐标
         task_finish_count = 0
@@ -110,7 +112,24 @@ def test_robot_2():
         robot_state[0] = _state_update(robot_state[0], out_0, dt)
         # robot_state[1] = _state_update(robot_state[1], out_1, dt)
 
-        print('robot_0:', robot_state[0], 'robot_1:', robot_state[1])
+        path_robot_0.append(robot_state[0,:2].copy())
+        print('robot_0:', robot_state[0], 'target:', robot_0.task_list)
+
+    #plot
+    fig, ax = plt.subplots()
+    ax.set_xlim(0, map_data.n_x*map_data.resolution_x)
+    ax.set_ylim(0, map_data.n_y*map_data.resolution_y)
+    for ob_points in map_data.obstacles:
+        ax.fill(map_data.n_x*map_data.resolution_x*ob_points[:, 0], map_data.n_y*map_data.resolution_y*ob_points[:, 1], 'g')
+    for i in range(map_data.n_starts):
+        ax.scatter(map_data.n_x*map_data.resolution_x*map_data.starts[i, 0], map_data.n_y*map_data.resolution_y*map_data.starts[i, 1], c='b')
+        plt.text(map_data.n_x*map_data.resolution_x*map_data.starts[i, 0], map_data.n_y*map_data.resolution_y*map_data.starts[i, 1], 's')
+    for i in range(map_data.n_tasks):
+        ax.scatter(map_data.n_x*map_data.resolution_x*map_data.tasks[i, 0], map_data.n_y*map_data.resolution_y*map_data.tasks[i, 1], c='r')
+        plt.text(map_data.n_x*map_data.resolution_x*map_data.tasks[i, 0], map_data.n_y*map_data.resolution_y*map_data.tasks[i, 1], 't')
+
+    ax.plot([p[0] for p in path_robot_0], [p[1] for p in path_robot_0], 'r')
+    plt.show()
             
   
 

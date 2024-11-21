@@ -249,7 +249,7 @@ class DWA:
             y = int(point[1]/self.resolution_y)
             if x < 0 or x >= self.n_x or y < 0 or y >= self.n_y:
                 collision_flag = True
-            if self.grid_map[x][y] == 1:
+            elif self.grid_map[x][y] == 1:
                 collision_flag = True
             if filed_flag == True and collision_flag == False:
                 #势场法

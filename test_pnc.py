@@ -55,7 +55,7 @@ def test_dwa():
 
     v_ave = 0.2
     dt = 0.1
-    predict_time = 2.5
+    predict_time = 2
     pos_factor = 100
     theta_factor = 10
     # 最后一个点的代价权重 与 （其他轨迹点之平均 的权重） 的比例
@@ -90,7 +90,7 @@ def test_dwa():
         state_robot = _state_update(state_robot, u_state, dt)
         path_dwa.append((state_robot[0], state_robot[1]))
         plot_u.append((counter, u_state[0], u_state[1]))
-        arrival_flag = _judge_arrival(state_robot, target, 0.05)
+        arrival_flag = _judge_arrival(state_robot, target, 0.1)
 
         if counter > 1000:
             print('dwa failed')

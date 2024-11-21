@@ -5,7 +5,7 @@
     "buffer_size": 5,
     "v_ave": 0.2,
     "dt": 0.1,
-    "predict_time": 3,
+    "predict_time": 2,
     "pos_factor": 100,
     "theta_factor": 10,
     "v_factor": 40,
