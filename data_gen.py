@@ -114,10 +114,11 @@ class AllocationDatasetGen():
                 _n_task = int(rng.integers(self.n_task_min, self.n_task_max + 1))
                 _n_obstacle = int(rng.integers(self.n_obstacle_min, self.n_obstacle_max + 1))
                 futures.append(executor.submit(self.allocationBatchGen, dir_name, rng, self.batch_size, _n_robot, _n_task, _n_obstacle))
-
+            i=0
             for future in futures:
                 future.result()
                 logging.info(f"Allocation Process {i+1}/{self.n_batch} completed")
+                i+=1
 
 
 class IntentionDatasetGen():
@@ -303,22 +304,23 @@ class IntentionDatasetGen():
                 _n_task = int(rng.integers(self.n_task_min, self.n_task_max + 1))
                 _n_obstacle = int(rng.integers(self.n_obstacle_min, self.n_obstacle_max + 1))
                 futures.append(executor.submit(self.intentionScaleGen, dir_name, rng, _n_robot, _n_task, _n_obstacle))
-
+            i=0
             for future in futures:
                 future.result()
                 logging.info(f"Intention Process {i+1}/{self.n_scale} completed")
+                i+=1
 
 
 
 if __name__ == '__main__':
-    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_2024"
-    dir_intention = "/home/data/wzr/no_com_1/data/intention_2024"
+    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_2024_test"
+    dir_intention = "/home/data/wzr/no_com_1/data/intention_2024_test"
     #intention n_batch
-    n_scale = 1024
+    n_scale = 128
     #intention n_map in each scale
     n_map = 64
     #allocation n_batch
-    n_batch = 1024
+    n_batch = 128
     #allocation
     batch_size = 256
     
@@ -328,7 +330,7 @@ if __name__ == '__main__':
     n_task_max = 30
     n_obstacle_min = 0
     n_obstacle_max = 8
-    seed = 2024
+    seed = 2025
     n_x = 100
     n_y = 100
     resolution_x = 0.1

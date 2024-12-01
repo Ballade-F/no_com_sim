@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from allocation import AllocationNet
 from dataset_allocation import AllocationDataset
 from scipy.stats import ttest_rel
+import logging
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
