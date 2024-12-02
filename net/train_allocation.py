@@ -14,7 +14,7 @@ import logging
 
 
 if torch.cuda.is_available():
-    DEVICE = torch.device('cuda:1')
+    DEVICE = torch.device('cuda:2')
     print('Using GPU')
 else:
     DEVICE = torch.device('cpu')
@@ -26,12 +26,12 @@ def train_allocation_net():
     # configuration
     embedding_size = 128
     attention_head = 8
-    num_epochs = 100
-    learning_rate = 0.0005
+    num_epochs = 10
+    learning_rate = 0.0001
     save_dir = '/home/data/wzr/no_com_1/model/allocation'
     dataset_dir = "/home/data/wzr/no_com_1/data/allocation_2024"
     test_dir = "/home/data/wzr/no_com_1/data/allocation_2024_test"
-    n_batch = 10
+    n_batch = 20
     test_batch = 1
     C=10
     is_train = True
@@ -61,6 +61,8 @@ def train_allocation_net():
     # Training loop
     for epoch in range(num_epochs):
         model_train.train()
+        model_train.is_train = True
+        model_target.is_train = False
         running_loss = 0.0
         for i, (feature_robot, feature_task, feature_obstacle, costmats, cfg) in enumerate(dataloader):
             feature_robot, feature_task, feature_obstacle, costmats = feature_robot.to(DEVICE), feature_task.to(DEVICE), feature_obstacle.to(DEVICE), costmats.to(DEVICE)
@@ -81,10 +83,10 @@ def train_allocation_net():
             model_train.config(cfg)
             model_target.config(cfg)
             # time_start = time.time()
-            seq, pro, distance = model_train(feature_robot, feature_task, feature_obstacle, costmats, is_train=True)
+            seq, pro, distance = model_train(feature_robot, feature_task, feature_obstacle, costmats)
             # time_end = time.time()
             # print('time:', time_end-time_start)
-            seq_target, pro_target, distance_target = model_target(feature_robot, feature_task, feature_obstacle, costmats, is_train=False)#baseline
+            seq_target, pro_target, distance_target = model_target(feature_robot, feature_task, feature_obstacle, costmats)#baseline
 
             pro_log = torch.log(pro)#(batch, n-1)
             loss = torch.sum(pro_log, dim=1) #(batch)
@@ -102,8 +104,9 @@ def train_allocation_net():
             nn.utils.clip_grad_norm_(model_train.parameters(), 1)
             optimizer.step()
             
-            print(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}, Distance: {distance.mean().item():.4f}')
-            logging.info(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}')
+            if (i+1) % 10 == 0:
+                print(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}, Distance: {distance.mean().item():.4f}')
+                logging.info(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}, Distance: {distance.mean().item():.4f}')
                     
 
             # OneSidedPairedTTest(做t-检验看当前Sampling的解效果是否显著好于greedy的解效果,如果是则更新使用greedy策略作为baseline的net2参数)
@@ -113,11 +116,13 @@ def train_allocation_net():
                 assert tt < 0, "T-statistic should be negative"
                 if p_val < bl_alpha:
                     print('Update baseline')
+                    logging.info('Update baseline')
                     model_target.load_state_dict(model_train.state_dict())
 
             # 每隔xxx步做测试判断结果有没有改进，如果改进了则把当前模型保存下来
             #测试集
             if (i+1) % 50 == 0:
+                model_train.is_train = False
                 model_train.eval()
                 with torch.no_grad():
                     time_ave = 0.0
@@ -131,11 +136,7 @@ def train_allocation_net():
 
                         # Forward pass
                         model_train.config(cfg)
-                        #测时间
-                        time_start = time.time()
-                        seq, pro, distance = model_train(feature_robot, feature_task, feature_obstacle, costmats, is_train=False)
-                        time_end = time.time()
-                        time_ave += time_end - time_start
+                        seq, pro, distance = model_train(feature_robot, feature_task, feature_obstacle, costmats)
                         length += distance.mean().item()
                     length = length/test_batch
                     time_ave = time_ave/test_batch
@@ -150,6 +151,7 @@ def train_allocation_net():
                     # Print statistics
                     print(f"TEST: Epoch {epoch}, Batch {i}, min {min}, length {length}, time {time_ave}")
                     logging.info(f"TEST: Epoch {epoch}, Batch {i}, min {min}, length {length}, time {time_ave}")
+                model_train.is_train = True
                 model_train.train()
 
 

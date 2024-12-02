@@ -42,14 +42,14 @@ def allocation_export():
     # allocation_model.load_state_dict(torch.load(allocation_model_dir))
     allocation_model.config_export()
     traced_script_module = torch.jit.script(allocation_model)
-    traced_script_module.config_script(2, 5, 1, 1, 4)
+    traced_script_module.config_script(2, 5, 1, 1, 4,'cpu')
     x_r = torch.randn(1, 2, 3)
     x_t = torch.randn(1, 5, 3)
     x_ob = torch.randn(1, 1, 4, 2)
     nothing = torch.randn(1, 2, 3)
     output = traced_script_module(x_r, x_t, x_ob,nothing)
     print(output)
-    # traced_script_module.save("allocation_model.pt")
+    traced_script_module.save("allocation_model.pt")
     
 
     # allocation_model = AllocationNet(4, 128, 1, 8)

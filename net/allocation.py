@@ -123,7 +123,7 @@ class AllocationNet(nn.Module):
             mask_temp = torch.zeros((self.batch_size, self.rt_n),dtype=torch.bool).to(self.device)
             mask_temp[torch.arange(self.batch_size),idx_last] = 1
             mask = mask | mask_temp
-            mask_ = mask.unsqueeze(1)#(batch,1,n_rt)
+            mask_ = mask.unsqueeze(1).to(self.device)#(batch,1,n_rt)
             mask_ = mask_.expand(self.batch_size,self.attention_head,self.rt_n)
             mask_ = mask_.unsqueeze(2)#(batch,attention_head,1,n_rt)
 
@@ -157,25 +157,12 @@ class AllocationNet(nn.Module):
             qk_out.masked_fill_(mask,-float('inf'))
             p = F.softmax(qk_out, dim=-1)
 
-            # # 检查 p 张量中的异常值
-            # if torch.any(torch.isnan(p)) or torch.any(torch.isinf(p)) or torch.any(p < 0):
-            #     print("qk_out contains invalid values:")
-            #     # print(x_rt_debug)
-            #     print(x_rt_debug.shape)
-            #     if torch.any(torch.isnan(x_rt_debug)):
-            #         print("nan")
-            #         k = torch.isnan(x_rt_debug)
-            #         print(k)
-            #     # print(k)
-            #     raise ValueError("p tensor contains either `inf`, `nan` or element < 0")
-
             if self.is_train:
                 idx = torch.multinomial(p,1).squeeze()
             else:
                 idx = torch.argmax(p,dim=1)
 
             #计算距离
-    
             if self.exp_flag:
                 #如果idx是机器人点，则退出
                 if idx < self.robot_n:
@@ -197,7 +184,7 @@ class AllocationNet(nn.Module):
 
         
 
-    def config(self,cfg:dict, costmap:torch.Tensor):
+    def config(self,cfg:dict):
         self.robot_n = int(cfg['n_robot'])
         self.task_n = int(cfg['n_task'])
         self.ob_n = int(cfg['n_obstacle'])
@@ -205,7 +192,7 @@ class AllocationNet(nn.Module):
         self.global_points_n = self.rt_n + self.ob_n
         self.ob_points = int(cfg['ob_points'])
         self.batch_size = int(cfg['batch_size'])
-        self.costmap = costmap
+        
 
     def config_export(self):
         self.is_train = False
@@ -214,7 +201,7 @@ class AllocationNet(nn.Module):
         self.batch_size = 1
 
     @torch.jit.export 
-    def config_script(self,n_robot:int,n_task:int,n_obstacle:int,batch_size:int,n_ob_points:int):
+    def config_script(self,n_robot:int,n_task:int,n_obstacle:int,batch_size:int,n_ob_points:int,device:str):
         self.robot_n = n_robot
         self.task_n = n_task
         self.ob_n = n_obstacle
@@ -222,6 +209,7 @@ class AllocationNet(nn.Module):
         self.ob_points = n_ob_points  
         self.global_points_n = self.rt_n + self.ob_n 
         self.rt_n = self.robot_n + self.task_n
+        self.device = device
         
 
         
