@@ -33,6 +33,11 @@ class AllocationNet(nn.Module):
         self.encoder_layer = encoder_layer
         self.local_embed_layers = local_embed_layers
         self.device = device
+        
+        # self.costmap = torch.tensor([])
+        
+        self.exp_flag = False
+        self.is_train = True
 
         # 嵌入
         self.embedding_rt = nn.Linear(rt_dim, embedding_size)
@@ -70,7 +75,7 @@ class AllocationNet(nn.Module):
 
 
 #x_r: (batch, n_robot, 3), x_t: (batch, n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2), costmap: (batch, n_robot+n_task, n_robot+n_task)
-    def forward(self, x_r, x_t, x_ob, costmap, is_train):
+    def forward(self, x_r, x_t, x_ob, costmap):
         x_rt = torch.cat((x_r, x_t), dim=1)
 
         #debug
@@ -106,9 +111,9 @@ class AllocationNet(nn.Module):
         idx = torch.zeros(self.batch_size,dtype=torch.long).to(self.device)  # 当前车辆所在的点
         idx_last = torch.zeros(self.batch_size,dtype=torch.long).to(self.device)  # 上一个车辆所在的点
         mask = torch.zeros(self.batch_size, self.rt_n,dtype=torch.bool).to(self.device)
-        pro = torch.FloatTensor(self.batch_size, self.rt_n-1).to(self.device)  # 每个点被选取时的选取概率，将其连乘可得到选取整个路径的概率
+        pro = torch.zeros(self.batch_size, self.rt_n-1,dtype=torch.double).to(self.device)  # 每个点被选取时的选取概率，将其连乘可得到选取整个路径的概率
         distance = torch.zeros(self.batch_size).to(self.device)  # 总距离
-        seq = torch.zeros(self.batch_size, self.rt_n-1).to(self.device)  # 选择的路径序列
+        seq = torch.zeros(self.batch_size, self.rt_n-1,dtype=torch.long).to(self.device)  # 选择的路径序列
 
         # #debug
         # print(self.batch_size)
@@ -152,30 +157,38 @@ class AllocationNet(nn.Module):
             qk_out.masked_fill_(mask,-float('inf'))
             p = F.softmax(qk_out, dim=-1)
 
-            # 检查 p 张量中的异常值
-            if torch.any(torch.isnan(p)) or torch.any(torch.isinf(p)) or torch.any(p < 0):
-                print("qk_out contains invalid values:")
-                # print(x_rt_debug)
-                print(x_rt_debug.shape)
-                if torch.any(torch.isnan(x_rt_debug)):
-                    print("nan")
-                    k = torch.isnan(x_rt_debug)
-                    print(k)
-                # print(k)
-                raise ValueError("p tensor contains either `inf`, `nan` or element < 0")
+            # # 检查 p 张量中的异常值
+            # if torch.any(torch.isnan(p)) or torch.any(torch.isinf(p)) or torch.any(p < 0):
+            #     print("qk_out contains invalid values:")
+            #     # print(x_rt_debug)
+            #     print(x_rt_debug.shape)
+            #     if torch.any(torch.isnan(x_rt_debug)):
+            #         print("nan")
+            #         k = torch.isnan(x_rt_debug)
+            #         print(k)
+            #     # print(k)
+            #     raise ValueError("p tensor contains either `inf`, `nan` or element < 0")
 
-            if is_train:
+            if self.is_train:
                 idx = torch.multinomial(p,1).squeeze()
             else:
                 idx = torch.argmax(p,dim=1)
 
             #计算距离
-            pro[:,i] = p[torch.arange(self.batch_size),idx]
-            seq[:,i] = idx
-            distance = distance + costmap[torch.arange(self.batch_size),idx_last,idx] #索引为列表时，返回的是列表对应位置的元素组成的列表
+    
+            if self.exp_flag:
+                #如果idx是机器人点，则退出
+                if idx < self.robot_n:
+                    break
+                else:
+                    seq[:,i] = idx
+            else:
+                seq[:,i] = idx
+                pro[:,i] = p[torch.arange(self.batch_size),idx]
+                distance = distance + costmap[torch.arange(self.batch_size),idx_last,idx] #索引为列表时，返回的是列表对应位置的元素组成的列表
             idx_last = idx
 
-        if is_train==False:
+        if self.is_train==False:
             seq = seq.detach()
             pro = pro.detach()
             distance = distance.detach()
@@ -184,7 +197,7 @@ class AllocationNet(nn.Module):
 
         
 
-    def config(self,cfg:dict):
+    def config(self,cfg:dict, costmap:torch.Tensor):
         self.robot_n = int(cfg['n_robot'])
         self.task_n = int(cfg['n_task'])
         self.ob_n = int(cfg['n_obstacle'])
@@ -192,8 +205,24 @@ class AllocationNet(nn.Module):
         self.global_points_n = self.rt_n + self.ob_n
         self.ob_points = int(cfg['ob_points'])
         self.batch_size = int(cfg['batch_size'])
+        self.costmap = costmap
+
+    def config_export(self):
+        self.is_train = False
+        self.exp_flag = True
+        # self.costmap = None
+        self.batch_size = 1
+
+    @torch.jit.export 
+    def config_script(self,n_robot:int,n_task:int,n_obstacle:int,batch_size:int,n_ob_points:int):
+        self.robot_n = n_robot
+        self.task_n = n_task
+        self.ob_n = n_obstacle
+        self.batch_size = batch_size
+        self.ob_points = n_ob_points  
+        self.global_points_n = self.rt_n + self.ob_n 
+        self.rt_n = self.robot_n + self.task_n
+        
 
         
-        
-
         

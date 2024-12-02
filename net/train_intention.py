@@ -25,16 +25,18 @@ def train_intention_net():
     batch_size = 128
     attention_head = 8
     r_points = 5
-    num_epochs = 100
+    num_epochs = 10
     learning_rate = 0.001
 
     save_dir = '/home/data/wzr/no_com_1/model/intention'
     dataset_dir = "/home/data/wzr/no_com_1/data/intention_2024"
     dataset_test_dir = "/home/data/wzr/no_com_1/data/intention_2024_test"
+    pre_model = '/home/data/wzr/no_com_1/model/intention/time_2024-12-01-12-06-51_acc_93.22.pt'
     # read json file
     with open(os.path.join(dataset_dir, "dataset_info.json"), "r") as f:
         dataset_info = json.load(f)
     n_scale = dataset_info["n_scale"]
+    # n_scale = 10
     ob_points = dataset_info["ob_points"]
     
     with open(os.path.join(dataset_test_dir, "dataset_info.json"), "r") as f:
@@ -46,11 +48,16 @@ def train_intention_net():
 
     # Initialize model, loss function, and optimizer
     model = IntentionNet(ob_points, r_points, embedding_size, batch_size, attention_head, device=DEVICE).to(DEVICE)
+    model.load_state_dict(torch.load(pre_model))
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    datasets = [IntentionDataset(os.path.join(dataset_dir, f"scale_{i}"), r_points) for i in range(n_scale)]
-    dataloaders = [DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True) for dataset in datasets]
+    # datasets = [IntentionDataset(os.path.join(dataset_dir, f"scale_{i}"), r_points) for i in range(n_scale)]
+    # dataloaders = [DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True) for dataset in datasets]
+    datasets = []
+    dataloaders = []
+    dataset = None
+    dataloader = None
     
     datasets_test = [IntentionDataset(os.path.join(dataset_test_dir, f"scale_{i}"), r_points) for i in range(n_scale_test)]
     dataloaders_test = [DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True) for dataset in datasets_test]
@@ -62,8 +69,16 @@ def train_intention_net():
     for epoch in range(num_epochs):
         model.train()
         for i_scale in range(n_scale):
-            dataset = datasets[i_scale]
-            dataloader = dataloaders[i_scale]    
+            if epoch == 0:
+                dataset = IntentionDataset(os.path.join(dataset_dir, f"scale_{i_scale}"), r_points)
+                dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+                datasets.append(dataset)
+                dataloaders.append(dataloader)
+            else:
+                dataset = datasets[i_scale]
+                dataloader = dataloaders[i_scale]
+            # dataset = datasets[i_scale]
+            # dataloader = dataloaders[i_scale]    
             cfg = dataset.cfg
             model.config(cfg)
             for i, (feature_robot, label, feature_task, feature_obstacle) in enumerate(dataloader):
@@ -90,40 +105,48 @@ def train_intention_net():
                     logging.info(f'Epoch [{epoch + 1}/{num_epochs}], Scale [{i_scale + 1}/{n_scale}], Loss: {loss_ave:.4f}')
                     running_loss = 0.0
                     
-        # test
-        model.eval()
-        with torch.no_grad():
-            test_loss = 0.0
-            right = 0
-            error = 0
-            count = 0
-            for i_scale in range(n_scale_test):
-                dataset = datasets_test[i_scale]
-                dataloader = dataloaders_test[i_scale]
-                cfg = dataset.cfg
-                model.config(cfg)
-                for i, (feature_robot, label, feature_task, feature_obstacle) in enumerate(dataloader):
-                    feature_robot, label, feature_task, feature_obstacle = feature_robot.to(DEVICE), label.to(DEVICE), feature_task.to(DEVICE), feature_obstacle.to(DEVICE)
-                    outputs = model(feature_robot, feature_task, feature_obstacle, is_train=False)
-                    model_label = torch.argmax(outputs, dim=-1)
-                    #如果model_label和label相等，则right += 1,否则error += 1
-                    right += torch.sum(model_label == label).item()
-                    error += torch.sum(model_label != label).item()
-                    loss = criterion(outputs.reshape(-1, 1+cfg["n_task"]), label.reshape(-1).long())
-                    test_loss += loss.detach().item()
-                    count += 1
-            
-            acc_ave = 100.0 * right / (right + error)
-            test_loss_ave = test_loss / count
-            print(f'Epoch [{epoch + 1}/{num_epochs}], Test Loss: {test_loss_ave:.4f}, Test Accuracy: {acc_ave:.4f}%')
-            logging.info(f'Epoch [{epoch + 1}/{num_epochs}], Test Loss: {test_loss_ave:.4f}, Test Accuracy: {acc_ave:.4f}%')
+            # test
+            if (i_scale+1) % 100 == 0:
+                model.eval()
+                with torch.no_grad():
+                    test_loss = 0.0
+                    right = 0
+                    error = 0
+                    count = 0
+                    time_ave = 0.0
+                    for i_scale in range(n_scale_test):
+                        dataset = datasets_test[i_scale]
+                        dataloader = dataloaders_test[i_scale]
+                        cfg = dataset.cfg
+                        model.config(cfg)
+                        for i, (feature_robot, label, feature_task, feature_obstacle) in enumerate(dataloader):
+                            feature_robot, label, feature_task, feature_obstacle = feature_robot.to(DEVICE), label.to(DEVICE), feature_task.to(DEVICE), feature_obstacle.to(DEVICE)
+                            #测时间
+                            time_start = time.time()
+                            outputs = model(feature_robot, feature_task, feature_obstacle, is_train=False)
+                            time_end = time.time()
+                            time_ave += time_end - time_start
+                            model_label = torch.argmax(outputs, dim=-1)
+                            #如果model_label和label相等，则right += 1,否则error += 1
+                            right += torch.sum(model_label == label).item()
+                            error += torch.sum(model_label != label).item()
+                            loss = criterion(outputs.reshape(-1, 1+cfg["n_task"]), label.reshape(-1).long())
+                            test_loss += loss.detach().item()
+                            count += 1
                     
-            if acc_ave > max_acc:
-                max_acc = acc_ave
-                torch.save(model.state_dict(), os.path.join(save_dir, "time_{}_acc_{:.2f}.pt".format
-                                                (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()), acc_ave)))
-                print('Model saved')
-                logging.info('Model saved')
+                    acc_ave = 100.0 * right / (right + error)
+                    time_ave = time_ave / count
+                    test_loss_ave = test_loss / count
+                    print(f'Epoch [{epoch + 1}/{num_epochs}], Test Loss: {test_loss_ave:.4f}, Test Accuracy: {acc_ave:.2f}%, Time: {time_ave:.4f}')
+                    logging.info(f'Epoch [{epoch + 1}/{num_epochs}], Test Loss: {test_loss_ave:.4f}, Test Accuracy: {acc_ave:.2f}%, Time: {time_ave:.4f}')
+                            
+                    if acc_ave > max_acc:
+                        max_acc = acc_ave
+                        torch.save(model.state_dict(), os.path.join(save_dir, "time_{}_acc_{:.2f}.pt".format
+                                                        (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()), acc_ave)))
+                        print('Model saved')
+                        logging.info('Model saved')
+                model.train()
                 
 
     print('Finished Training')

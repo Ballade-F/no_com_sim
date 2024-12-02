@@ -313,14 +313,16 @@ class IntentionDatasetGen():
 
 
 if __name__ == '__main__':
-    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_2024_test"
-    dir_intention = "/home/data/wzr/no_com_1/data/intention_2024_test"
+    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_2024"
+    dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_2024_test"
+    # dir_intention = "/home/data/wzr/no_com_1/data/intention_2024"
     #intention n_batch
-    n_scale = 128
+    n_scale = 1024
     #intention n_map in each scale
     n_map = 64
     #allocation n_batch
-    n_batch = 128
+    n_batch = 1024
+    n_test_batch = 128
     #allocation
     batch_size = 256
     
@@ -330,7 +332,8 @@ if __name__ == '__main__':
     n_task_max = 30
     n_obstacle_min = 0
     n_obstacle_max = 8
-    seed = 2025
+    seed = 2024
+    seed_test = 2025
     n_x = 100
     n_y = 100
     resolution_x = 0.1
@@ -348,11 +351,17 @@ if __name__ == '__main__':
     allocation_dataset_gen.AllocationDatasetGen()
 
     logging.info('allocation dataset done')
+    
+    allocationTest_dataset_gen = AllocationDatasetGen(dir_allocation_test, n_test_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+                                                  n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
+    allocationTest_dataset_gen.AllocationDatasetGen()
+    
+    logging.info('allocation test dataset done')
 
-    intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
-                                                n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
-    intention_dataset_gen.IntentionDatasetGen()
-    logging.info('intention dataset done')
+    # intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
+    #                                             n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    # intention_dataset_gen.IntentionDatasetGen()
+    # logging.info('intention dataset done')
 
 
     

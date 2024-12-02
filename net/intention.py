@@ -92,15 +92,16 @@ class IntentionNet(nn.Module):
 
         # local embedding
         x_r = x_r.reshape(self.batch_size*self.robot_n, self.r_points, self.embedding_size)
+        encoder_layer = None
         for encoder_layer in self.robot_encoder_layers:
             x_r = encoder_layer(x_r)
         x_r = x_r.reshape(self.batch_size, self.robot_n, self.r_points, self.embedding_size)
 
-        if self.ob_n > 0:
-            x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
-            for encoder_layer in self.ob_encoder_layers:
-                x_ob = encoder_layer(x_ob)
-            x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
+        # if self.ob_n > 0:
+        x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
+        for encoder_layer in self.ob_encoder_layers:
+            x_ob = encoder_layer(x_ob)
+        x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
 
         x_r = torch.mean(x_r, dim=2)
         x_ob = torch.mean(x_ob, dim=2)
@@ -121,10 +122,20 @@ class IntentionNet(nn.Module):
 
         return qk_d
     
+    # @torch.jit.export
     def config(self,cfg:dict):
         self.robot_n = int(cfg['n_robot'])
         self.task_n = int(cfg['n_task'])+1
         self.ob_n = int(cfg['n_obstacle'])
+       
+    @torch.jit.export 
+    def config_script(self,n_robot:int,n_task:int,n_obstacle:int,batch_size:int,n_ob_points:int):
+        self.robot_n = n_robot
+        self.task_n = n_task+1
+        self.ob_n = n_obstacle
+        self.batch_size = batch_size
+        self.ob_points = n_ob_points
+        
         
 
     

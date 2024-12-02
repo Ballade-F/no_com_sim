@@ -28,6 +28,9 @@ class batchData():
             map_dir = os.path.join(dir, f"map_{i}")
             costmat = np.load(os.path.join(map_dir, "costmat.npy"))
             self.costmats[i,:,:] = costmat
+            # debug, 检验costmat里是否有inf
+            if np.isinf(costmat).any():
+                print(f"{dir} costmat {i} has inf")
             with open(os.path.join(map_dir, "info.csv"), "r") as f:
                 reader = csv.reader(f)
                 for idx, row in enumerate(reader):
