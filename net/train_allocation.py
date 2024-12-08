@@ -9,35 +9,49 @@ from dataset_allocation import AllocationDataset
 from scipy.stats import ttest_rel
 import time as TM
 import logging
+import argparse
 
-# device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu' )
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Train Allocation Network')
+parser.add_argument('--device', type=str, default='cuda:2', help='Device to use for training (e.g., "cuda:2" or "cpu")')
+parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate for training')
+parser.add_argument('--n_batch', type=int, default=10, help='Number of batches in the training dataset')
+parser.add_argument('--test_batch', type=int, default=1, help='Number of batches in the test dataset')
+parser.add_argument('--n_epoch', type=int, default=200, help='Number of epochs to train')
+args = parser.parse_args()
 
-
-if torch.cuda.is_available():
-    DEVICE = torch.device('cuda:2')
+# Set device
+if args.device.startswith('cuda') and torch.cuda.is_available():
+    DEVICE = torch.device(args.device)
     print('Using GPU')
 else:
     DEVICE = torch.device('cpu')
     print('Using CPU')
 
-# DEVICE = torch.device('cpu')
+# if torch.cuda.is_available():
+#     DEVICE = torch.device('cuda:2')
+#     print('Using GPU')
+# else:
+#     DEVICE = torch.device('cpu')
+#     print('Using CPU')
+
 
 def train_allocation_net():
     # configuration
     embedding_size = 128
     attention_head = 8
-    num_epochs = 10
-    learning_rate = 0.0001
+    num_epochs = args.n_epoch
+    learning_rate = args.lr
     save_dir = '/home/data/wzr/no_com_1/model/allocation'
     dataset_dir = "/home/data/wzr/no_com_1/data/allocation_2024"
     test_dir = "/home/data/wzr/no_com_1/data/allocation_2024_test"
-    n_batch = 20
-    test_batch = 1
+    n_batch = args.n_batch
+    test_batch = args.test_batch
     C=10
     is_train = True
 
     bl_alpha = 0.05  # 做t-检验更新baseline时所设置的阈值
-    min = 100  # 当前已保存的所有模型中测试路径长度的最小值
+    min = 36.5  # 当前已保存的所有模型中测试路径长度的最小值
 
     # Load dataset 
     dataset = AllocationDataset(dataset_dir, n_batch)
@@ -104,7 +118,7 @@ def train_allocation_net():
             nn.utils.clip_grad_norm_(model_train.parameters(), 1)
             optimizer.step()
             
-            if (i+1) % 10 == 0:
+            if (i+1) % 100 == 0:
                 print(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}, Distance: {distance.mean().item():.4f}')
                 logging.info(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}, Distance: {distance.mean().item():.4f}')
                     
@@ -121,7 +135,7 @@ def train_allocation_net():
 
             # 每隔xxx步做测试判断结果有没有改进，如果改进了则把当前模型保存下来
             #测试集
-            if (i+1) % 50 == 0:
+            if (i+1) % 100 == 0:
                 model_train.is_train = False
                 model_train.eval()
                 with torch.no_grad():
@@ -164,10 +178,16 @@ def train_allocation_net():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='/home/users/wzr/project/no_com_sim/log/train_allocation_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/train_allocation_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
                          level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     logging.info('BEGIN')
+    logging.info('Device: {}'.format(DEVICE))
+    logging.info('Learning rate: {}'.format(args.lr))
+    logging.info('Number of batches: {}'.format(args.n_batch))
+    logging.info('Number of test batches: {}'.format(args.test_batch))
+    logging.info('Number of epochs: {}'.format(args.n_epoch))
+    
     train_allocation_net()
     print('Finished Training')
     logging.info('Finished Training')

@@ -37,19 +37,37 @@ def intention_export():
     # traced_script_module.save("intention_model.pt")
     
 def allocation_export():
-    # allocation_model_dir
+    allocation_model_dir = '/home/data/wzr/no_com_1/model/allocation/time_2024-12-07-00-22-58_dis_36.75.pt'
     allocation_model = AllocationNet(16, 128, 128, 8)
-    # allocation_model.load_state_dict(torch.load(allocation_model_dir))
-    allocation_model.config_export()
+    allocation_model.load_state_dict(torch.load(allocation_model_dir))
+    # allocation_model.config_export()
     traced_script_module = torch.jit.script(allocation_model)
-    traced_script_module.config_script(2, 5, 1, 1, 4,'cpu')
+    traced_script_module.config_script(2, 3, 1, 1, 4,'cpu')
     x_r = torch.randn(1, 2, 3)
-    x_t = torch.randn(1, 5, 3)
+    x_t = torch.randn(1, 3, 3)
     x_ob = torch.randn(1, 1, 4, 2)
-    nothing = torch.randn(1, 2, 3)
-    output = traced_script_module(x_r, x_t, x_ob,nothing)
+    nothing = torch.randn(1, 5, 5)
+    x_r[0,:,2] = -1
+    x_r[0, 0, 0] = 0.1
+    x_r[0, 0, 1] = 0.1
+    x_r[0, 1, 0] = 0.1
+    x_r[0, 1, 1] = 0.9
+    x_t[0,:,2] = 0
+    x_t[0, 0, 0] = 0.5
+    x_t[0, 0, 1] = 0.5
+    x_t[0, 1, 0] = 0.9
+    x_t[0, 1, 1] = 0.1
+    x_t[0, 2, 0] = 0.9
+    x_t[0, 2, 1] = 0.9
+    x_ob[0, 0] = torch.tensor([[0.1, 0.8], [0.9, 0.8], [0.9, 0.6], [0.1, 0.6]])
+    
+    # output = traced_script_module(x_r, x_t, x_ob,nothing)
+    
+    allocation_model.is_train = False
+    allocation_model.config_script(2, 3, 1, 1, 4,'cpu')
+    output = allocation_model(x_r, x_t, x_ob,nothing)
     print(output)
-    traced_script_module.save("allocation_model.pt")
+    # traced_script_module.save("allocation_model.pt")
     
 
     # allocation_model = AllocationNet(4, 128, 1, 8)
