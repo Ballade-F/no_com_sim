@@ -1,0 +1,4 @@
+train intention:
+/home/users/wzr/anaconda3/envs/icus/bin/python /home/users/wzr/project/no_com_sim/net/train_intention.py --device 'cuda:0' --lr 0.001 --lr_step 50 --lr_gamma 0.9 --batch_size 128 --embedding_size 128 --attention_head 8 --n_scale 1024 --n_scale_test 10 --n_epoch 20
+
+train allocation:

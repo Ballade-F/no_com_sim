@@ -53,12 +53,26 @@ class IntentionNet(nn.Module):
         self.r_points = r_points
 
         # 嵌入
-        self.embedding_robot = nn.Linear(feature_robot, embedding_size)
-        nn.init.kaiming_normal_(self.embedding_robot.weight)
+        self.embedding_robot_points = nn.Linear(feature_robot, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_robot_points.weight)
+        self.embedding_robot_center = nn.Linear(feature_robot, embedding_size // 2)
+        nn.init.kaiming_normal_(self.embedding_robot_center.weight)
+        self.embedding_robot_delta = nn.Linear(feature_robot, embedding_size // 2)#x,y方向的平均速率
+        nn.init.kaiming_normal_(self.embedding_robot_delta.weight)
+        self.embedding_robot_cat = nn.Linear(embedding_size*2, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_robot_cat.weight)
+        
         self.embedding_task = nn.Linear(feature_task, embedding_size)
         nn.init.kaiming_normal_(self.embedding_task.weight)
-        self.embedding_ob = nn.Linear(feature_ob, embedding_size)
-        nn.init.kaiming_normal_(self.embedding_ob.weight)
+        
+        self.embedding_obstacle_points = nn.Linear(feature_ob, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_obstacle_points.weight)
+        self.embedding_obstacle_center = nn.Linear(feature_ob, embedding_size // 2)
+        nn.init.kaiming_normal_(self.embedding_obstacle_center.weight)
+        self.embedding_obstacle_delta = nn.Linear(feature_ob, embedding_size // 2)  # xy方向的最大差值
+        nn.init.kaiming_normal_(self.embedding_obstacle_delta.weight)
+        self.embedding_obstacle_cat = nn.Linear(embedding_size * 2, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_obstacle_cat.weight)
 
         self.robot_encoder_layers = nn.ModuleList([
             SelfAttentionBlock(embedding_size, attention_head)
@@ -83,28 +97,51 @@ class IntentionNet(nn.Module):
         self.wk_td = nn.Linear(embedding_size, embedding_size)
         nn.init.kaiming_normal_(self.wk_td.weight)
 
-#x_r: (batch, n_robot,r_points, 2), x_t: (batch, self.n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2)
-    def forward(self,x_r_,x_t_,x_ob_,is_train):
-         # 嵌入层
-        x_r = self.embedding_robot(x_r_)
+#x_r: (batch, n_robot,r_points+2, 2), r_points为[-1,1]归一化坐标，后面为平均位置，平均速率
+# x_t: (batch, self.n_task, 3), x_ob: (batch, n_obstacle, ob_points+2, 2)
+    def forward(self,x_r_,x_t_,x_ob_):
+        # 嵌入层
+        # x_r = self.embedding_robot(x_r_)
+        x_r_points_ = x_r_[:,:,:self.r_points,:]#(batch, robot_n, r_points, 2)
+        x_r_ave_ = x_r_[:,:,self.r_points,:]#(batch, robot_n, 2)
+        x_r_delta_ = x_r_[:,:,self.r_points+1,:]#(batch, robot_n, 2)
+        
+        x_r_points = self.embedding_robot_points(x_r_points_)#(batch, robot_n, r_points, embedding_size)
+        x_r_ave = self.embedding_robot_center(x_r_ave_)#(batch, robot_n, embedding_size/2)
+        x_r_delta = self.embedding_robot_delta(x_r_delta_) #(batch, robot_n, embedding_size/2)
+        
         x_t = self.embedding_task(x_t_)
-        x_ob = self.embedding_ob(x_ob_)
+        
+        x_ob_points_ = x_ob_[:, :, :self.ob_points, :]  # (batch, obstacle_n, ob_points, 2)
+        x_ob_ave_ = x_ob_[:, :, self.ob_points, :]  # (batch, obstacle_n, 2)
+        x_ob_delta_ = x_ob_[:, :, self.ob_points + 1, :]  # (batch, obstacle_n, 2)
+
+        x_ob_points = self.embedding_obstacle_points(x_ob_points_)  # (batch, obstacle_n, ob_points, embedding_size)
+        x_ob_ave = self.embedding_obstacle_center(x_ob_ave_)  # (batch, obstacle_n, embedding_size/2)
+        x_ob_delta = self.embedding_obstacle_delta(x_ob_delta_)  # (batch, obstacle_n, embedding_size/2)
+
 
         # local embedding
-        x_r = x_r.reshape(self.batch_size*self.robot_n, self.r_points, self.embedding_size)
+        x_r_points = x_r_points.reshape(self.batch_size*self.robot_n, self.r_points, self.embedding_size)
         encoder_layer = None
         for encoder_layer in self.robot_encoder_layers:
-            x_r = encoder_layer(x_r)
-        x_r = x_r.reshape(self.batch_size, self.robot_n, self.r_points, self.embedding_size)
+            x_r_points = encoder_layer(x_r_points)
+        x_r_points = x_r_points.reshape(self.batch_size, self.robot_n, self.r_points, self.embedding_size)
 
-        # if self.ob_n > 0:
-        x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
-        for encoder_layer in self.ob_encoder_layers:
-            x_ob = encoder_layer(x_ob)
-        x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
+        if self.ob_n > 0:
+        # if x_ob_.shape[1] > 2:
+            x_ob_points = x_ob_points.reshape(self.batch_size * self.ob_n, self.ob_points, self.embedding_size)
+            for ob_layer in self.ob_encoder_layers:
+                x_ob_points = ob_layer(x_ob_points)
+            x_ob_points = x_ob_points.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
 
-        x_r = torch.mean(x_r, dim=2)
-        x_ob = torch.mean(x_ob, dim=2)
+        x_r_points = torch.mean(x_r_points, dim=2)#(batch, robot_n, embedding_size)
+        x_r = torch.cat((x_r_points, x_r_ave, x_r_delta), dim=2)#(batch, robot_n, 2*embedding_size)
+        x_r = self.embedding_robot_cat(x_r)#(batch, robot_n, embedding_size)
+        
+        x_ob_points = torch.mean(x_ob_points, dim=2)  # (batch, obstacle_n, embedding_size)
+        x_ob = torch.cat((x_ob_points, x_ob_ave, x_ob_delta), dim=2)  # (batch, obstacle_n, 2*embedding_size)
+        x_ob = self.embedding_obstacle_cat(x_ob)  # (batch, obstacle_n, embedding_size)
 
         # encoder
         x = torch.cat((x_r, x_t, x_ob), dim=1)

@@ -13,11 +13,15 @@ import argparse
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Train Allocation Network')
-parser.add_argument('--device', type=str, default='cuda:2', help='Device to use for training (e.g., "cuda:2" or "cpu")')
-parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate for training')
-parser.add_argument('--n_batch', type=int, default=10, help='Number of batches in the training dataset')
-parser.add_argument('--test_batch', type=int, default=1, help='Number of batches in the test dataset')
-parser.add_argument('--n_epoch', type=int, default=200, help='Number of epochs to train')
+parser.add_argument('--device', type=str, default='cuda:3', help='Device to use for training (e.g., "cuda:2" or "cpu")')
+parser.add_argument('--lr', type=float, default=0.00012, help='Learning rate for training')
+parser.add_argument('--lr_step', type=int, default=50, help='Number of epochs before reducing learning rate')
+parser.add_argument('--lr_gamma', type=float, default=0.95, help='Multiplicative factor for reducing learning rate')
+parser.add_argument('--embedding_size', type=int, default=128, help='Size of the embedding vector')
+parser.add_argument('--attention_head', type=int, default=8, help='Number of attention heads')
+parser.add_argument('--n_batch', type=int, default=1024, help='Number of batches in the training dataset')
+parser.add_argument('--test_batch', type=int, default=20, help='Number of batches in the test dataset')
+parser.add_argument('--n_epoch', type=int, default=500, help='Number of epochs to train')
 args = parser.parse_args()
 
 # Set device
@@ -38,11 +42,13 @@ else:
 
 def train_allocation_net():
     # configuration
-    embedding_size = 128
-    attention_head = 8
+    embedding_size = args.embedding_size
+    attention_head = args.attention_head
     num_epochs = args.n_epoch
     learning_rate = args.lr
-    save_dir = '/home/data/wzr/no_com_1/model/allocation'
+    lr_step = args.lr_step
+    lr_gamma = args.lr_gamma
+    save_dir = '/home/data/wzr/no_com_1/model/allocation/2024_12_9'
     dataset_dir = "/home/data/wzr/no_com_1/data/allocation_2024"
     test_dir = "/home/data/wzr/no_com_1/data/allocation_2024_test"
     n_batch = args.n_batch
@@ -57,7 +63,7 @@ def train_allocation_net():
     dataset = AllocationDataset(dataset_dir, n_batch)
     dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
     dataset_test = AllocationDataset(test_dir, test_batch)
-    dataloader_test = DataLoader(dataset_test, batch_size=1, shuffle=False)
+    dataloader_test = DataLoader(dataset_test, batch_size=1, shuffle=True)
 
     n_ob_points = dataset.ob_points
     batch_size = dataset.batch_size
@@ -68,9 +74,8 @@ def train_allocation_net():
     model_train = AllocationNet(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
     model_target = AllocationNet(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
 
-
     optimizer = optim.Adam(model_train.parameters(), lr=learning_rate)
-
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_step, gamma=lr_gamma)
 
     # Training loop
     for epoch in range(num_epochs):
@@ -84,15 +89,6 @@ def train_allocation_net():
             feature_task = feature_task.squeeze(0)
             feature_obstacle = feature_obstacle.squeeze(0)
             costmats = costmats.squeeze(0)
-
-            # #debug
-            # print("epoch", epoch, "batch", i)
-            # print(feature_robot.shape)
-            # print(feature_task.shape)
-            # print(feature_obstacle.shape)
-            # print(costmats.shape)
-            
-
             # Forward pass
             model_train.config(cfg)
             model_target.config(cfg)
@@ -108,10 +104,6 @@ def train_allocation_net():
             score = score.detach()
             loss = score * loss
             loss = torch.sum(loss) / batch_size
-
-            # #debug
-            # print(score)
-
             # Backward pass and optimize
             optimizer.zero_grad()
             loss.backward()
@@ -122,7 +114,6 @@ def train_allocation_net():
                 print(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}, Distance: {distance.mean().item():.4f}')
                 logging.info(f'Epoch [{epoch + 1}/{num_epochs}], batch [{i + 1}/{len(dataloader)}], Loss: {loss.detach().item():.4f}, Distance: {distance.mean().item():.4f}')
                     
-
             # OneSidedPairedTTest(做t-检验看当前Sampling的解效果是否显著好于greedy的解效果,如果是则更新使用greedy策略作为baseline的net2参数)
             if (distance.mean() - distance_target.mean()) < 0:
                 tt, pp = ttest_rel(distance.cpu().numpy(), distance_target.cpu().numpy())
@@ -134,7 +125,6 @@ def train_allocation_net():
                     model_target.load_state_dict(model_train.state_dict())
 
             # 每隔xxx步做测试判断结果有没有改进，如果改进了则把当前模型保存下来
-            #测试集
             if (i+1) % 100 == 0:
                 model_train.is_train = False
                 model_train.eval()
@@ -168,7 +158,10 @@ def train_allocation_net():
                 model_train.is_train = True
                 model_train.train()
 
-
+        scheduler.step()  
+        print(f'Epoch [{epoch + 1}/{num_epochs}], Learning rate: {scheduler.get_last_lr()[0]}')  
+        logging.info(f'Epoch [{epoch + 1}/{num_epochs}], Learning rate: {scheduler.get_last_lr()[0]}')  
+        
     # # Save model
     # if not os.path.exists(save_dir):
     #     os.makedirs(save_dir)
@@ -178,12 +171,16 @@ def train_allocation_net():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/train_allocation_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/allo_2024_12_9/train_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
                          level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     logging.info('BEGIN')
     logging.info('Device: {}'.format(DEVICE))
     logging.info('Learning rate: {}'.format(args.lr))
+    logging.info('Learning rate step: {}'.format(args.lr_step))
+    logging.info('Learning rate gamma: {}'.format(args.lr_gamma))
+    logging.info('Embedding size: {}'.format(args.embedding_size))
+    logging.info('Attention head: {}'.format(args.attention_head))
     logging.info('Number of batches: {}'.format(args.n_batch))
     logging.info('Number of test batches: {}'.format(args.test_batch))
     logging.info('Number of epochs: {}'.format(args.n_epoch))

@@ -42,8 +42,16 @@ class AllocationNet(nn.Module):
         # 嵌入
         self.embedding_rt = nn.Linear(rt_dim, embedding_size)
         nn.init.kaiming_normal_(self.embedding_rt.weight)
-        self.embedding_ob = nn.Linear(ob_dim, embedding_size)
-        nn.init.kaiming_normal_(self.embedding_ob.weight)
+        # self.embedding_ob = nn.Linear(ob_dim, embedding_size)
+        # nn.init.kaiming_normal_(self.embedding_ob.weight)
+        self.embedding_obstacle_points = nn.Linear(ob_dim, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_obstacle_points.weight)
+        self.embedding_obstacle_center = nn.Linear(ob_dim, embedding_size // 2)
+        nn.init.kaiming_normal_(self.embedding_obstacle_center.weight)
+        self.embedding_obstacle_delta = nn.Linear(ob_dim, embedding_size // 2)  # xy方向的最大差值
+        nn.init.kaiming_normal_(self.embedding_obstacle_delta.weight)
+        self.embedding_obstacle_cat = nn.Linear(embedding_size * 2, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_obstacle_cat.weight)
 
         # encoder
         # local embedding
@@ -74,31 +82,36 @@ class AllocationNet(nn.Module):
         nn.init.kaiming_normal_(self.out_wk.weight)
 
 
-#x_r: (batch, n_robot, 3), x_t: (batch, n_task, 3), x_ob: (batch, n_obstacle, ob_points, 2), costmap: (batch, n_robot+n_task, n_robot+n_task)
-    def forward(self, x_r, x_t, x_ob, costmap):
+#x_r: (batch, n_robot, 3), x_t: (batch, n_task, 3), x_ob: (batch, n_obstacle, ob_points+2, 2), costmap: (batch, n_robot+n_task, n_robot+n_task)
+    def forward(self, x_r, x_t, x_ob_, costmap):
         x_rt = torch.cat((x_r, x_t), dim=1)
 
-        #debug
-        x_rt_debug = x_rt
+        # #debug
+        # x_rt_debug = x_rt
 
         # 嵌入层
         x_rt = self.embedding_rt(x_rt)#(batch, n_robot+n_task, embedding_size)
-        x_ob = self.embedding_ob(x_ob)#(batch, n_obstacle, ob_points, embedding_size)
+        # x_ob = self.embedding_ob(x_ob)#(batch, n_obstacle, ob_points, embedding_size)
 
-        
+        x_ob_points_ = x_ob_[:, :, :self.ob_points, :]  # (batch, obstacle_n, ob_points, 2)
+        x_ob_ave_ = x_ob_[:, :, self.ob_points, :]  # (batch, obstacle_n, 2)
+        x_ob_delta_ = x_ob_[:, :, self.ob_points + 1, :]  # (batch, obstacle_n, 2)
+
+        x_ob_points = self.embedding_obstacle_points(x_ob_points_)  # (batch, obstacle_n, ob_points, embedding_size)
+        x_ob_ave = self.embedding_obstacle_center(x_ob_ave_)  # (batch, obstacle_n, embedding_size/2)
+        x_ob_delta = self.embedding_obstacle_delta(x_ob_delta_)  # (batch, obstacle_n, embedding_size/2)
+
 
         # local embedding
-        if x_ob.shape[1] != 0:
-            #TODO: 改成vectornet的方法，拼接
-            x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
-
-            # #debug
-            # print(x_ob.shape)
-
+        if self.ob_n > 0:
+            x_ob_points = x_ob_points.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
             for layer in self.local_encoder_layers:
-                x_ob = layer(x_ob)
-            x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
-        x_ob = torch.mean(x_ob, dim=2)
+                x_ob_points = layer(x_ob_points)
+            x_ob_points = x_ob_points.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
+        x_ob_points = torch.mean(x_ob_points, dim=2) #(batch, obstacle_n, embedding_size)
+        x_ob = torch.cat((x_ob_points, x_ob_ave, x_ob_delta), dim=2)  # (batch, obstacle_n, 2*embedding_size)
+        x_ob = self.embedding_obstacle_cat(x_ob)  # (batch, obstacle_n, embedding_size)
+        
         # global encoding
         x = torch.cat((x_rt, x_ob), dim=1)
 
@@ -169,6 +182,8 @@ class AllocationNet(nn.Module):
                     break
                 else:
                     seq[:,i] = idx
+                    pro[:,i] = p[torch.arange(self.batch_size),idx]
+
             else:
                 seq[:,i] = idx
                 pro[:,i] = p[torch.arange(self.batch_size),idx]

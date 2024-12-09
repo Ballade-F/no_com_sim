@@ -81,4 +81,10 @@ def test_logging():
 
 if __name__ == '__main__':
     # test_multiprocess()
-    test_logging()
+    # test_logging()
+
+
+    test = np.random.rand(3, 2)
+    print(test)
+    min_test = np.min(test, axis=0)
+    print(min_test)
