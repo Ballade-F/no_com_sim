@@ -52,7 +52,8 @@ class AllocationDatasetGen():
             dir_name_map = os.path.join(dir_name, f"map_{i}")
             os.makedirs(dir_name_map, exist_ok=True)
             map = mp.Map(n_obstacle, n_robot, n_task, self.n_x, self.n_y, self.resolution_x, self.resolution_y)
-            map.setObstacleRandn(rng)
+            # map.setObstacleRandn(rng)
+            map.setObstacleExp(rng)
             astar_planner = path_planner.AStarPlanner(map.grid_map, map.resolution_x, map.resolution_y)
             starts = map.starts_grid
             tasks = map.tasks_grid
@@ -161,7 +162,8 @@ class IntentionDatasetGen():
             dir_name_map = os.path.join(dir_name, f"map_{i_map}")
             os.makedirs(dir_name_map, exist_ok=True)
             map = mp.Map(n_obstacle, n_robot, n_task, self.n_x, self.n_y, self.resolution_x, self.resolution_y)
-            map.setObstacleRandn(rng)
+            # map.setObstacleRandn(rng)
+            map.setObstacleExp(rng)
 
             # #障碍csv
             # with open(os.path.join(dir_name_map, f"targets_obstacles.csv"), "w", newline='') as csv_file:
@@ -245,6 +247,8 @@ class IntentionDatasetGen():
                 writer.writerow(['Time','Type','ID','x', 'y','feature'])
                 # simulate the trajectory
                 for i in range(n_max):
+                    #统计完成任务的机器人数量
+                    finished_robot = 0
                     for j in range(n_robot):
                         if i < n[j]:
                             writer.writerow([i, 'robot', j, path_allot_norm[j][i][0], path_allot_norm[j][i][1], robot_schedules[j][path_index[j]]])
@@ -255,9 +259,14 @@ class IntentionDatasetGen():
                                 points_num[j] = 0
                         else:
                             writer.writerow([i, 'robot', j, path_allot_norm[j][-1][0], path_allot_norm[j][-1][1], -1])
+                            finished_robot += 1
 
                     for j in range(n_task):
                         writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], int(map.tasks_finish[j])])
+                    #只剩一个机器人未完成任务，结束
+                    if finished_robot >= n_robot-1:
+                        break
+                    
             
             # if i_map == 0:
             #     fig, ax = plt.subplots()
@@ -310,9 +319,7 @@ class IntentionDatasetGen():
                 logging.info(f"Intention Process {i+1}/{self.n_scale} completed")
                 i+=1
 
-
-
-if __name__ == '__main__':
+def gen_2024():
     dir_allocation = "/home/data/wzr/no_com_1/data/allocation_2024"
     dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_2024_test"
     # dir_intention = "/home/data/wzr/no_com_1/data/intention_2024"
@@ -362,6 +369,114 @@ if __name__ == '__main__':
     #                                             n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
     # intention_dataset_gen.IntentionDatasetGen()
     # logging.info('intention dataset done')
+
+def gen_exp():
+    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_exp"
+    # dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_exp_test"
+    dir_intention = "/home/data/wzr/no_com_1/data/intention_exp"
+    #intention n_batch
+    n_scale = 128
+    #intention n_map in each scale
+    n_map = 64
+    #allocation n_batch
+    n_batch = 128
+    n_test_batch = 32
+    #allocation
+    batch_size = 128
+    
+    n_robot_min = 2
+    n_robot_max = 5
+    n_task_min = 5
+    n_task_max = 10
+    n_obstacle_min = 3
+    n_obstacle_max = 20
+    seed = 2024
+    seed_test = 2025
+    n_x = 100
+    n_y = 100
+    resolution_x = 0.1
+    resolution_y = 0.1
+    ob_points = 4
+    n_workers = 64
+
+    logging.basicConfig(filename='/home/users/wzr/project/no_com_sim/log/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+                         level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    logging.info('BEGIN')
+
+    allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+                                                  n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    allocation_dataset_gen.AllocationDatasetGen()
+
+    logging.info('allocation dataset done')
+    
+    # allocationTest_dataset_gen = AllocationDatasetGen(dir_allocation_test, n_test_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+    #                                               n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
+    # allocationTest_dataset_gen.AllocationDatasetGen()
+    
+    # logging.info('allocation test dataset done')
+
+    # intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
+    #                                             n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    # intention_dataset_gen.IntentionDatasetGen()
+    # logging.info('intention dataset done')
+
+
+def gen_exp_test():
+    dir_allocation = "/home/jxl3028/Desktop/wzr/data/allocation_exp"
+    # dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_exp_test"
+    dir_intention = "/home/jxl3028/Desktop/wzr/data/intention_exp"
+    #intention n_batch
+    n_scale = 4
+    #intention n_map in each scale
+    n_map = 2
+    #allocation n_batch
+    n_batch = 4
+    #allocation
+    batch_size = 2
+    
+    n_robot_min = 2
+    n_robot_max = 5
+    n_task_min = 5
+    n_task_max = 12
+    n_obstacle_min = 3
+    n_obstacle_max = 20
+    seed = 2024
+    seed_test = 2025
+    n_x = 156
+    n_y = 156
+    resolution_x = 0.05
+    resolution_y = 0.05
+    ob_points = 4
+    n_workers = 4
+
+    logging.basicConfig(filename='/home/jxl3028/Desktop/wzr/log/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+                         level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    logging.info('BEGIN')
+
+    allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+                                                  n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    allocation_dataset_gen.AllocationDatasetGen()
+
+    logging.info('allocation dataset done')
+    
+    # allocationTest_dataset_gen = AllocationDatasetGen(dir_allocation_test, n_test_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+    #                                               n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
+    # allocationTest_dataset_gen.AllocationDatasetGen()
+    
+    logging.info('allocation test dataset done')
+
+    intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
+                                                n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    intention_dataset_gen.IntentionDatasetGen()
+    logging.info('intention dataset done')
+
+if __name__ == '__main__':
+    # gen_2024()
+    gen_exp_test()
+    
+    
 
 
     

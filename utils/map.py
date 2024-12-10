@@ -194,6 +194,39 @@ class Map():
         self.tasks_grid[:,0] = np.floor(self.tasks[:,0]*self.n_x).astype(int)
         self.tasks_grid[:,1] = np.floor(self.tasks[:,1]*self.n_y).astype(int)
 
+    def setObstacleExp(self, rng:np.random.Generator):
+        # rng = np.random.default_rng(seed)
+        ob_len = 0.071
+        center_points = rng.uniform(0, 1, (self.n_obstacles, 2))
+        ob_theta = rng.uniform(0, 0.5*np.pi, (self.n_obstacles))
+        for i in range(self.n_obstacles):
+            ob_points = np.zeros((4, 2)) #正方形
+            for j in range(4):
+                ob_points[j, 0] = center_points[i, 0] + ob_len*np.cos(ob_theta[i]+j*np.pi/2)
+                ob_points[j, 1] = center_points[i, 1] + ob_len*np.sin(ob_theta[i]+j*np.pi/2)
+            ob_points = np.maximum(ob_points, 0)
+            ob_points = np.minimum(ob_points, 1)
+            self.obstacles.append(ob_points)
+
+        self._obstacle2grid()
+
+        while(True):
+            self.starts = rng.uniform(0, 1, (self.n_starts, 2))
+            self.tasks = rng.uniform(0, 1, (self.n_tasks, 2))
+            if True not in self._isObstacle(self.starts[:, 0], self.starts[:, 1])  and True not in self._isObstacle(self.tasks[:, 0], self.tasks[:, 1]) :
+                break
+
+        self.tasks_finish = [False for _ in range(self.n_tasks)]
+
+        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
+        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
+        self.starts_grid[:,0] = np.floor(self.starts[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,1] = np.floor(self.starts[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,0] = np.floor(self.tasks[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,1] = np.floor(self.tasks[:,1]*self.n_y).astype(int)
+        
+        
+        
     # input: true coordinates(default) or norm coordinates, & id of task
     # if point and task are in the same grid, return True
     def checkTaskFinish(self, x:float, y:float, task_id:int,norm_flag=False):
@@ -256,9 +289,10 @@ class Map():
         plt.show()
 
 if __name__ == '__main__':
-    map = Map(9, 2, 2, 100, 100, 1, 1)
+    map = Map(20, 2, 9, 156, 156, 0.05, 0.05,4)
     rng = np.random.default_rng(2)
-    map.setObstacleRandn(rng)
+    # map.setObstacleRandn(rng)
+    map.setObstacleExp(rng)
     map.plot()
     map.plotGrid()
 
