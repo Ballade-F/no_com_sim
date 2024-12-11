@@ -76,7 +76,7 @@ class IntentionDataset(Dataset):
     
     #return: feature_robot, label, feature_task, feature_obstacle
     #feature_robot:(n_robot,r_points+2, 2), r_points为[-1,1]归一化坐标，后面为平均位置，平均速率
-    #feature_obstacle:(n_obstacle, ob_points+2, 2), ob_points为[-1,1]归一化坐标，后面为平均位置，xy方向最大差值
+    #feature_obstacle:(n_obstacle, ob_points, 2)
     def __getitem__(self, idx):
         map_idx = 0
         if idx >= self.__len__():
@@ -118,27 +118,27 @@ class IntentionDataset(Dataset):
         
         # 处理 obstacle
         traj_obstacle_item = self.feature_obstacle[map_idx] # (n_obstacle, ob_points, 2)
-        obstacle_ave = np.mean(traj_obstacle_item, axis=1) # (n_obstacle, 2)
-        obstacle_min = np.min(traj_obstacle_item, axis=1) # (n_obstacle, 2)
-        obstacle_max = np.max(traj_obstacle_item, axis=1) # (n_obstacle, 2)
-        obstacle_delta = obstacle_max - obstacle_min + 1e-6  # 防止除零
-        # 归一化坐标到 [-1, 1]
-        # traj_obstacle_norm = np.zeros((self.n_obstacle, self.ob_points, 2))
-        traj_obstacle_norm = 2 * (traj_obstacle_item - obstacle_min[:, np.newaxis, :]) / obstacle_delta[:, np.newaxis, :] - 1 # (n_obstacle, ob_points, 2)
-        # 拼接 traj_obstacle_norm, obstacle_ave, obstacle_delta
-        traj_obstacle_return = np.concatenate((traj_obstacle_norm, obstacle_ave[:, np.newaxis, :], obstacle_delta[:, np.newaxis, :]), axis=1) # (n_obstacle, ob_points+2, 2)
+        # obstacle_ave = np.mean(traj_obstacle_item, axis=1) # (n_obstacle, 2)
+        # obstacle_min = np.min(traj_obstacle_item, axis=1) # (n_obstacle, 2)
+        # obstacle_max = np.max(traj_obstacle_item, axis=1) # (n_obstacle, 2)
+        # obstacle_delta = obstacle_max - obstacle_min + 1e-6  # 防止除零
+        # # 归一化坐标到 [-1, 1]
+        # # traj_obstacle_norm = np.zeros((self.n_obstacle, self.ob_points, 2))
+        # traj_obstacle_norm = 2 * (traj_obstacle_item - obstacle_min[:, np.newaxis, :]) / obstacle_delta[:, np.newaxis, :] - 1 # (n_obstacle, ob_points, 2)
+        # # 拼接 traj_obstacle_norm, obstacle_ave, obstacle_delta
+        # traj_obstacle_return = np.concatenate((traj_obstacle_norm, obstacle_ave[:, np.newaxis, :], obstacle_delta[:, np.newaxis, :]), axis=1) # (n_obstacle, ob_points+2, 2)
         
         # 转换为 PyTorch 张量
         feature_robot = torch.FloatTensor(traj_robot_return)
         label = torch.LongTensor(label)
         feature_task = torch.FloatTensor(traj_task)
-        feature_obstacle = torch.FloatTensor(traj_obstacle_return)
+        feature_obstacle = torch.FloatTensor(traj_obstacle_item)
 
         return feature_robot, label, feature_task, feature_obstacle
         # feature_robot: (n_robot, n_robot_points+2, 2) 
         # label: (n_robot)
         # feature_task: (n_task+1, 3)
-        # feature_obstacle: (n_obstacle, ob_points+2, 2)
+        # feature_obstacle: (n_obstacle, ob_points, 2)
 
         
 

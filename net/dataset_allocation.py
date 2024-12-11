@@ -87,18 +87,18 @@ class AllocationDataset(Dataset):
             raise IndexError("Index out of range")
         
         obstacle_item = self.batchs[idx].feature_obstacle # (batch_size, n_obstacle, ob_points, 2)
-        obstacle_ave = np.mean(obstacle_item, axis=2) # (batch_size, n_obstacle, 2)
-        obstacle_min = np.min(obstacle_item, axis=2) # (batch_size, n_obstacle, 2)
-        obstacle_max = np.max(obstacle_item, axis=2) # (batch_size, n_obstacle, 2) 
-        obstacle_delta = obstacle_max - obstacle_min + 1e-6  # 防止除零
-        # 归一化坐标到 [-1, 1]
-        obstacle_norm = 2 * (obstacle_item - obstacle_min[:,:, np.newaxis, :]) / obstacle_delta[:,:, np.newaxis, :] - 1 # (batch_size, n_obstacle, ob_points, 2)
-        #拼接
-        obstacle_return = np.concatenate((obstacle_norm, obstacle_ave[:, :, np.newaxis, :], obstacle_delta[:, :, np.newaxis, :]), axis=2) # (batch_size, n_obstacle, ob_points+2, 2)
+        # obstacle_ave = np.mean(obstacle_item, axis=2) # (batch_size, n_obstacle, 2)
+        # obstacle_min = np.min(obstacle_item, axis=2) # (batch_size, n_obstacle, 2)
+        # obstacle_max = np.max(obstacle_item, axis=2) # (batch_size, n_obstacle, 2) 
+        # obstacle_delta = obstacle_max - obstacle_min + 1e-6  # 防止除零
+        # # 归一化坐标到 [-1, 1]
+        # obstacle_norm = 2 * (obstacle_item - obstacle_min[:,:, np.newaxis, :]) / obstacle_delta[:,:, np.newaxis, :] - 1 # (batch_size, n_obstacle, ob_points, 2)
+        # #拼接
+        # obstacle_return = np.concatenate((obstacle_norm, obstacle_ave[:, :, np.newaxis, :], obstacle_delta[:, :, np.newaxis, :]), axis=2) # (batch_size, n_obstacle, ob_points+2, 2)
         
         feature_robot = torch.from_numpy(self.batchs[idx].feature_robot).float()
         feature_task = torch.from_numpy(self.batchs[idx].feature_task).float()
-        feature_obstacle = torch.from_numpy(obstacle_return).float()
+        feature_obstacle = torch.from_numpy(obstacle_item).float()
         costmat = torch.from_numpy(self.batchs[idx].costmats).float()
         #到robot的cost设置成0
         costmat[:,:,:self.batchs[idx].n_robot] = 0

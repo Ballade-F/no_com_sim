@@ -370,56 +370,63 @@ def gen_2024():
     # intention_dataset_gen.IntentionDatasetGen()
     # logging.info('intention dataset done')
 
-def gen_exp():
-    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_exp"
-    # dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_exp_test"
-    dir_intention = "/home/data/wzr/no_com_1/data/intention_exp"
+def gen_exp_2024():
+    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_exp_2"
+    dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_exp_test_2"
+    dir_intention = "/home/data/wzr/no_com_1/data/intention_exp_2"
+    dir_intention_test = "/home/data/wzr/no_com_1/data/intention_exp_test_2"
     #intention n_batch
-    n_scale = 128
+    n_scale = 1024
+    n_test_scale = 64
     #intention n_map in each scale
     n_map = 64
     #allocation n_batch
-    n_batch = 128
-    n_test_batch = 32
+    n_batch = 1024
+    n_test_batch = 64
     #allocation
-    batch_size = 128
+    batch_size = 256
     
     n_robot_min = 2
     n_robot_max = 5
     n_task_min = 5
-    n_task_max = 10
+    n_task_max = 12
     n_obstacle_min = 3
     n_obstacle_max = 20
-    seed = 2024
-    seed_test = 2025
-    n_x = 100
-    n_y = 100
-    resolution_x = 0.1
-    resolution_y = 0.1
+    seed = 2
+    seed_test = 22
+    n_x = 156
+    n_y = 156
+    resolution_x = 0.05
+    resolution_y = 0.05
     ob_points = 4
     n_workers = 64
 
-    logging.basicConfig(filename='/home/users/wzr/project/no_com_sim/log/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/2024_12_10/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
                          level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     logging.info('BEGIN')
 
+    intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
+                                                n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    intention_dataset_gen.IntentionDatasetGen()
+    logging.info('intention dataset done')
+    
+    intentionTest_dataset_gen = IntentionDatasetGen(dir_intention_test, n_test_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
+                                                n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
+    intentionTest_dataset_gen.IntentionDatasetGen()
+    logging.info('intention test dataset done')
+    
     allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
                                                   n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
     allocation_dataset_gen.AllocationDatasetGen()
 
     logging.info('allocation dataset done')
     
-    # allocationTest_dataset_gen = AllocationDatasetGen(dir_allocation_test, n_test_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
-    #                                               n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
-    # allocationTest_dataset_gen.AllocationDatasetGen()
+    allocationTest_dataset_gen = AllocationDatasetGen(dir_allocation_test, n_test_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+                                                  n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
+    allocationTest_dataset_gen.AllocationDatasetGen()
     
-    # logging.info('allocation test dataset done')
-
-    # intention_dataset_gen = IntentionDatasetGen(dir_intention, n_scale, n_map, n_robot_min, n_robot_max, n_task_min, n_task_max,
-    #                                             n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
-    # intention_dataset_gen.IntentionDatasetGen()
-    # logging.info('intention dataset done')
+    logging.info('allocation test dataset done')
 
 
 def gen_exp_test():
@@ -474,7 +481,7 @@ def gen_exp_test():
 
 if __name__ == '__main__':
     # gen_2024()
-    gen_exp_test()
+    gen_exp_2024()
     
     
 

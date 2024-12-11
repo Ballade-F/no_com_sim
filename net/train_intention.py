@@ -30,6 +30,10 @@ parser.add_argument('--attention_head', type=int, default=8, help='Number of att
 parser.add_argument('--n_scale', type=int, default=1024, help='Number of batches in the training dataset')
 parser.add_argument('--n_scale_test', type=int, default=10, help='Number of batches in the test dataset')
 parser.add_argument('--n_epoch', type=int, default=20, help='Number of epochs to train')
+parser.add_argument('--save_dir', type=str, default="intention", help='Directory to save the model')
+parser.add_argument('--log_dir', type=str, default="intention", help='Directory to save the log')
+parser.add_argument('--data_dir', type=str, default="intention", help='Directory of the training dataset')
+parser.add_argument('--test_dir', type=str, default="intention_test", help='Directory of the test dataset')
 
 args = parser.parse_args()
 
@@ -55,9 +59,13 @@ def train_intention_net():
     lr_step = args.lr_step
     lr_gamma = args.lr_gamma    
 
-    save_dir = '/home/data/wzr/no_com_1/model/intention/2024_12_9'
-    dataset_dir = "/home/data/wzr/no_com_1/data/intention_2024"
-    dataset_test_dir = "/home/data/wzr/no_com_1/data/intention_2024_test"
+    save_dir_root = '/home/data/wzr/no_com_1/model/intention'
+    dataset_dir_root = "/home/data/wzr/no_com_1/data"
+    dataset_test_dir_root = "/home/data/wzr/no_com_1/data"
+    save_dir = os.path.join(save_dir_root, args.save_dir)
+    os.makedirs(save_dir, exist_ok=True)
+    dataset_dir = os.path.join(dataset_dir_root, args.data_dir)
+    dataset_test_dir = os.path.join(dataset_test_dir_root, args.test_dir)
     # pre_model = '/home/data/wzr/no_com_1/model/intention/time_2024-12-01-12-06-51_acc_93.22.pt'
     # read json file
     with open(os.path.join(dataset_dir, "dataset_info.json"), "r") as f:
@@ -188,7 +196,12 @@ def train_intention_net():
     logging.info('Finished Training')
 
 if __name__ == "__main__":
-    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/2024_12_8/train_intention_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+    log_dir_root = '/home/data/wzr/no_com_1/log'
+    log_dir = args.log_dir
+    log_dir = os.path.join(log_dir_root, log_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f"train_intention_{TM.strftime('%Y-%m-%d-%H-%M', TM.localtime())}.log")
+    logging.basicConfig(filename=log_path,
                          level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     logging.info('BEGIN')
@@ -202,6 +215,10 @@ if __name__ == "__main__":
     logging.info('Number of batches: {}'.format(args.n_scale))
     logging.info('Number of test batches: {}'.format(args.n_scale_test))
     logging.info('Number of epochs: {}'.format(args.n_epoch))
+    logging.info('Save directory: {}'.format(args.save_dir))
+    logging.info('Log directory: {}'.format(args.log_dir))
+    logging.info('Data directory: {}'.format(args.data_dir))
+    logging.info('Test directory: {}'.format(args.test_dir))
     train_intention_net()
     print('Finished Training')
     logging.info('Finished Training')
