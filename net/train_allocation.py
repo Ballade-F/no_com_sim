@@ -67,7 +67,7 @@ def train_allocation_net():
     is_train = True
 
     bl_alpha = 0.05  # 做t-检验更新baseline时所设置的阈值
-    min = 36.5  # 当前已保存的所有模型中测试路径长度的最小值
+    min = 25  # 当前已保存的所有模型中测试路径长度的最小值
 
     # Load dataset 
     dataset = AllocationDataset(dataset_dir, n_batch)

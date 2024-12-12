@@ -21,7 +21,7 @@ class batchData():
 
         self.feature_robot = np.full((self.batch_size, self.n_robot, 3),-1, dtype=float)
         self.feature_task = np.full((self.batch_size, self.n_task, 3),-1, dtype=float) 
-        self.feature_obstacle = np.full((self.batch_size, self.n_obstacle, self.ob_points, 2),-1, dtype=float)
+        self.feature_obstacle = np.full((self.batch_size, self.n_obstacle, self.ob_points, 4),-1, dtype=float)
         self.costmats = np.full((self.batch_size, self.n_robot+self.n_task, self.n_robot+self.n_task),-1, dtype=float)
 
         for i in range(self.batch_size):
@@ -46,9 +46,12 @@ class batchData():
                     else:
                         idx_ob = int(row[0])-1
                         idx_point = (idx-self.n_robot-self.n_task-1)-idx_ob*self.ob_points
-                        self.feature_obstacle[i, idx_ob, idx_point,:] = row[1:]
+                        self.feature_obstacle[i, idx_ob, idx_point,0:2] = row[1:]
 
-            
+            #每个obs的各个点收尾相接
+            for j in range(self.ob_points-1):
+                self.feature_obstacle[i,:,j,2:] = self.feature_obstacle[i,:,j+1,:2]
+            self.feature_obstacle[i,:,-1,2:] = self.feature_obstacle[i,:,0,:2]
 
         
             
@@ -86,16 +89,7 @@ class AllocationDataset(Dataset):
         if idx >= self.n_batch:
             raise IndexError("Index out of range")
         
-        obstacle_item = self.batchs[idx].feature_obstacle # (batch_size, n_obstacle, ob_points, 2)
-        # obstacle_ave = np.mean(obstacle_item, axis=2) # (batch_size, n_obstacle, 2)
-        # obstacle_min = np.min(obstacle_item, axis=2) # (batch_size, n_obstacle, 2)
-        # obstacle_max = np.max(obstacle_item, axis=2) # (batch_size, n_obstacle, 2) 
-        # obstacle_delta = obstacle_max - obstacle_min + 1e-6  # 防止除零
-        # # 归一化坐标到 [-1, 1]
-        # obstacle_norm = 2 * (obstacle_item - obstacle_min[:,:, np.newaxis, :]) / obstacle_delta[:,:, np.newaxis, :] - 1 # (batch_size, n_obstacle, ob_points, 2)
-        # #拼接
-        # obstacle_return = np.concatenate((obstacle_norm, obstacle_ave[:, :, np.newaxis, :], obstacle_delta[:, :, np.newaxis, :]), axis=2) # (batch_size, n_obstacle, ob_points+2, 2)
-        
+        obstacle_item = self.batchs[idx].feature_obstacle # (batch_size, n_obstacle, ob_points, 4)
         feature_robot = torch.from_numpy(self.batchs[idx].feature_robot).float()
         feature_task = torch.from_numpy(self.batchs[idx].feature_task).float()
         feature_obstacle = torch.from_numpy(obstacle_item).float()

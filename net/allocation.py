@@ -8,12 +8,12 @@ from module import SelfAttentionBlock
 
 
 
-# 输入[batch, n_robot, 3]，[batch, n_robot, 3]，[batch, n_obstacle, ob_points, 2]
+# 输入[batch, n_robot, 3]，[batch, n_robot, 3]，[batch, n_obstacle, ob_points, 4]
 class AllocationNet(nn.Module):
     def __init__(self, ob_points:int,
-                 embedding_size:int, batch_size:int, attention_head:int,
-                 rt_dim:int = 3, ob_dim:int = 2, C:float = 10.0,
-                 encoder_layer:int = 3, local_embed_layers:int=2, device='cpu'):
+                 embedding_size:int, batch_size:int, attention_head:int, punish:float = 0.5,
+                 rt_dim:int = 3, ob_dim:int = 4, C:float = 10.0,
+                 encoder_layer:int = 3, local_embed_layers:int=3, device='cpu'):
         super(AllocationNet, self).__init__()
         if embedding_size % attention_head != 0 :
             raise ValueError("embedding_size must be divisible by attention_head")
@@ -33,6 +33,7 @@ class AllocationNet(nn.Module):
         self.encoder_layer = encoder_layer
         self.local_embed_layers = local_embed_layers
         self.device = device
+        self.punish = punish
         
         # self.costmap = torch.tensor([])
         
@@ -169,6 +170,10 @@ class AllocationNet(nn.Module):
                 seq[:,i] = idx
                 pro[:,i] = p[torch.arange(self.batch_size),idx]
                 distance = distance + costmap[torch.arange(self.batch_size),idx_last,idx] #索引为列表时，返回的是列表对应位置的元素组成的列表
+                # #如果是预测模式，若idx是机器人点，则dist为0
+                # if self.is_train==False:
+                #     distance = distance*(idx>=self.robot_n).double()
+                
             idx_last = idx
 
         if self.is_train==False:
@@ -195,6 +200,7 @@ class AllocationNet(nn.Module):
         self.exp_flag = True
         # self.costmap = None
         self.batch_size = 1
+        self.eval()
 
     @torch.jit.export 
     def config_script(self,n_robot:int,n_task:int,n_obstacle:int,batch_size:int,n_ob_points:int,device:str):
