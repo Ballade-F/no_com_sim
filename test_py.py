@@ -84,7 +84,9 @@ if __name__ == '__main__':
     # test_logging()
 
 
-    test = np.random.rand(3, 2)
-    print(test)
-    min_test = np.min(test, axis=0)
-    print(min_test)
+    # test = np.random.rand(3, 2)
+    # print(test)
+    # min_test = np.min(test, axis=0)
+    # print(min_test)
+    x = (0.7275641025641025 - 0.7211538461538461)*156
+    print(x)

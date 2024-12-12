@@ -101,7 +101,7 @@ def train_intention_net():
     min_loss = 0.1
     running_loss = 0.0
     train_count = 0
-    max_acc = 96.0
+    max_acc = 95.0
     # epoch training
     for epoch in range(num_epochs):
         model.train()

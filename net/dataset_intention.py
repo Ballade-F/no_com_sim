@@ -37,7 +37,7 @@ class IntentionDataset(Dataset):
         self.traj_robot = []
         self.traj_task = []
         self.traj_len = []
-        self.feature_obstacle = np.full((self.n_map, self.n_obstacle, self.ob_points, 2),-1, dtype=float)
+        self.feature_obstacle = np.full((self.n_map, self.n_obstacle, self.ob_points, 4),-1, dtype=float)
         for i_map in range(self.n_map):
             map_dir = os.path.join(scale_dirs, f"map_{i_map}")
             trajectory_path = os.path.join(map_dir, "trajectory.csv")
@@ -69,7 +69,11 @@ class IntentionDataset(Dataset):
                         continue
                     idx_ob = int(row[0])-1
                     idx_point = (idx-self.n_robot-self.n_task-1)-idx_ob*self.ob_points
-                    self.feature_obstacle[i_map, idx_ob, idx_point,:] = row[1:]
+                    self.feature_obstacle[i_map, idx_ob, idx_point,0:2] = row[1:]
+                    #每个obs的各个点收尾相接
+            for j in range(self.ob_points-1):
+                self.feature_obstacle[i_map,:,j,2:] = self.feature_obstacle[i_map,:,j+1, 0:2]
+            self.feature_obstacle[i_map,:,-1,2:] = self.feature_obstacle[i_map,:,0, 0:2]
 
     def __len__(self):
         return sum(self.traj_len)
@@ -99,35 +103,17 @@ class IntentionDataset(Dataset):
         for i in range(self.n_task):
             traj_task[i,:] = self.traj_task[map_idx][idx+self.n_robot_points-1][i]
 
-        robot_ave = np.mean(traj_robot_item, axis=1)#(n_robot,2) 平均位置
-        robot_delta = np.zeros((self.n_robot,self.n_robot_points-1,2))
-        for i in range(self.n_robot_points-1):
-            robot_delta[:,i,:] = abs(traj_robot_item[:,i+1,:] - traj_robot_item[:,i,:])
-        robot_delta = np.mean(robot_delta, axis=1) #(n_robot,2) 平均速率,按最大速率归一化
-        robot_delta[:,0] = robot_delta[:,0]*self.n_x
-        robot_delta[:,1] = robot_delta[:,1]*self.n_y
-        # 归一化坐标到 [-1, 1]
-        traj_robot_norm = np.zeros((self.n_robot, self.n_robot_points, 2))
-        for i in range(self.n_robot):
-            min_val = np.min(traj_robot_item[i], axis=0) # (2,)
-            max_val = np.max(traj_robot_item[i], axis=0) # (2,)
-            traj_robot_norm[i] = 2 * (traj_robot_item[i] - min_val) / (max_val - min_val + 1e-6) - 1
-
-        # 拼接 traj_robot_norm, robot_ave, robot_delta
-        traj_robot_return = np.concatenate((traj_robot_norm, robot_ave[:, np.newaxis, :], robot_delta[:, np.newaxis, :]), axis=1)
+        traj_robot_return = np.zeros((self.n_robot,self.n_robot_points-1,4)) #x,y, delta_x, delta_y
+        for i in range(self.n_robot_points -1):
+            traj_robot_return[:,i,0:2] = traj_robot_item[:,i,:]
+            traj_robot_return[:,i,2:4] = traj_robot_item[:,i+1,:] - traj_robot_item[:,i,:]
+        # delta归一化 按总速度的最大值为1算
+        traj_robot_return[:,:,2] = traj_robot_return[:,:,2] * self.n_x * 0.7071
+        traj_robot_return[:,:,3] = traj_robot_return[:,:,3] * self.n_y * 0.7071
         
         # 处理 obstacle
-        traj_obstacle_item = self.feature_obstacle[map_idx] # (n_obstacle, ob_points, 2)
-        # obstacle_ave = np.mean(traj_obstacle_item, axis=1) # (n_obstacle, 2)
-        # obstacle_min = np.min(traj_obstacle_item, axis=1) # (n_obstacle, 2)
-        # obstacle_max = np.max(traj_obstacle_item, axis=1) # (n_obstacle, 2)
-        # obstacle_delta = obstacle_max - obstacle_min + 1e-6  # 防止除零
-        # # 归一化坐标到 [-1, 1]
-        # # traj_obstacle_norm = np.zeros((self.n_obstacle, self.ob_points, 2))
-        # traj_obstacle_norm = 2 * (traj_obstacle_item - obstacle_min[:, np.newaxis, :]) / obstacle_delta[:, np.newaxis, :] - 1 # (n_obstacle, ob_points, 2)
-        # # 拼接 traj_obstacle_norm, obstacle_ave, obstacle_delta
-        # traj_obstacle_return = np.concatenate((traj_obstacle_norm, obstacle_ave[:, np.newaxis, :], obstacle_delta[:, np.newaxis, :]), axis=1) # (n_obstacle, ob_points+2, 2)
-        
+        traj_obstacle_item = self.feature_obstacle[map_idx] # (n_obstacle, ob_points, 4)
+              
         # 转换为 PyTorch 张量
         feature_robot = torch.FloatTensor(traj_robot_return)
         label = torch.LongTensor(label)
@@ -135,10 +121,10 @@ class IntentionDataset(Dataset):
         feature_obstacle = torch.FloatTensor(traj_obstacle_item)
 
         return feature_robot, label, feature_task, feature_obstacle
-        # feature_robot: (n_robot, n_robot_points+2, 2) 
+        # feature_robot: (n_robot, n_robot_points-1, 4) 
         # label: (n_robot)
         # feature_task: (n_task+1, 3)
-        # feature_obstacle: (n_obstacle, ob_points, 2)
+        # feature_obstacle: (n_obstacle, ob_points, 4)
 
         
 
