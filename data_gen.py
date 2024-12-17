@@ -241,6 +241,7 @@ class IntentionDatasetGen():
             n_max = max(n)+1
             path_index = [0 for _ in range(n_robot)]
             points_num = [0 for _ in range(n_robot)]
+            task_finish_last = [False for _ in range(n_task)]
 
             with open(os.path.join(dir_name_map, "trajectory.csv"), "w", newline='') as csv_file:
                 writer = csv.writer(csv_file)
@@ -262,7 +263,8 @@ class IntentionDatasetGen():
                             finished_robot += 1
 
                     for j in range(n_task):
-                        writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], int(map.tasks_finish[j])])
+                        writer.writerow([i, 'task', j, map.tasks[j,0], map.tasks[j,1], int(task_finish_last[j])])
+                        task_finish_last[j] = map.tasks_finish[j]
                     #只剩一个机器人未完成任务，结束
                     if finished_robot >= n_robot-1:
                         break
@@ -371,10 +373,10 @@ def gen_2024():
     # logging.info('intention dataset done')
 
 def gen_exp_2024():
-    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_exp_2"
-    dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_exp_test_2"
-    dir_intention = "/home/data/wzr/no_com_1/data/intention_exp_2"
-    dir_intention_test = "/home/data/wzr/no_com_1/data/intention_exp_test_2"
+    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_exp_3"
+    dir_allocation_test = "/home/data/wzr/no_com_1/data/allocation_exp_test_3"
+    dir_intention = "/home/data/wzr/no_com_1/data/intention_exp_3"
+    dir_intention_test = "/home/data/wzr/no_com_1/data/intention_exp_test_3"
     #intention n_batch
     n_scale = 1024
     n_test_scale = 64
@@ -392,8 +394,8 @@ def gen_exp_2024():
     n_task_max = 12
     n_obstacle_min = 3
     n_obstacle_max = 20
-    seed = 2
-    seed_test = 22
+    seed = 3
+    seed_test = 33
     n_x = 156
     n_y = 156
     resolution_x = 0.05
@@ -401,7 +403,7 @@ def gen_exp_2024():
     ob_points = 4
     n_workers = 64
 
-    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/2024_12_10/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/2024_12_16/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
                          level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     logging.info('BEGIN')
@@ -416,17 +418,17 @@ def gen_exp_2024():
     intentionTest_dataset_gen.IntentionDatasetGen()
     logging.info('intention test dataset done')
     
-    allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
-                                                  n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
-    allocation_dataset_gen.AllocationDatasetGen()
+    # allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+    #                                               n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    # allocation_dataset_gen.AllocationDatasetGen()
 
-    logging.info('allocation dataset done')
+    # logging.info('allocation dataset done')
     
-    allocationTest_dataset_gen = AllocationDatasetGen(dir_allocation_test, n_test_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
-                                                  n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
-    allocationTest_dataset_gen.AllocationDatasetGen()
+    # allocationTest_dataset_gen = AllocationDatasetGen(dir_allocation_test, n_test_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max, 
+    #                                               n_obstacle_min, n_obstacle_max, ob_points, seed_test, n_x, n_y, resolution_x, resolution_y, n_workers)
+    # allocationTest_dataset_gen.AllocationDatasetGen()
     
-    logging.info('allocation test dataset done')
+    # logging.info('allocation test dataset done')
 
 
 def gen_exp_test():

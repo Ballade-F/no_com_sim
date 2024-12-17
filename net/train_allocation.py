@@ -128,8 +128,8 @@ def train_allocation_net():
             if (distance.mean() - distance_target.mean()) < 0:
                 tt, pp = ttest_rel(distance.cpu().numpy(), distance_target.cpu().numpy())
                 p_val = pp / 2
-                assert tt < 0, "T-statistic should be negative"
-                if p_val < bl_alpha:
+                # assert tt < 0, "T-statistic should be negative"
+                if tt < 0 and p_val < bl_alpha:
                     print('Update baseline')
                     logging.info('Update baseline')
                     model_target.load_state_dict(model_train.state_dict())
