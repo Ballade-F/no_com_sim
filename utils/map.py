@@ -139,6 +139,24 @@ class Map():
         self.tasks_grid[:,1] = np.floor(tasks_[:,1]*self.n_y).astype(int)
         self.tasks_grid[:,1] = max(0, min(self.tasks_grid[:,1], self.n_y-1))
 
+    # input: normalized coordinates
+    def setMapNorm(self, obstacles: np.ndarray, start: np.ndarray, tasks: np.ndarray):
+        for i_ob in range(self.n_obstacles):
+            ob_points = obstacles[i_ob]
+            self.obstacles.append(ob_points)
+        self.starts = start.copy()
+        self.tasks = tasks.copy()
+
+        self.tasks_finish = [False for _ in range(self.n_tasks)]
+        self.starts_grid = np.zeros((self.n_starts, 2), dtype=int)
+        self.tasks_grid = np.zeros((self.n_tasks, 2), dtype=int)
+        self.starts_grid[:,0] = np.floor(self.starts[:,0]*self.n_x).astype(int)
+        self.starts_grid[:,1] = np.floor(self.starts[:,1]*self.n_y).astype(int)
+        self.tasks_grid[:,0] = np.floor(self.tasks[:,0]*self.n_x).astype(int)
+        self.tasks_grid[:,1] = np.floor(self.tasks[:,1]*self.n_y).astype(int)
+
+        self._obstacle2grid()
+
     # input: true coordinates
     def setObstacles(self, obstacles: list, start: np.ndarray, tasks: np.ndarray):
         for ob_points in obstacles:

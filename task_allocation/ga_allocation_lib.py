@@ -62,6 +62,34 @@ class GATaskAllocationPlanner:
         self.reward_time_decay = decay
     
     # 遗传算法任务分配函数
+    # agent_task_dist_mat: (num_agent, num_task) 智能体到任务距离矩阵
+    # task_dist_mat:     (num_task, num_task) 任务之间距离矩阵
+    def ga_allocate_mat(self, agent_task_dist_mat:np.NDArray, task_dist_mat:np.NDArray) -> List[List[int]]:
+        self.num_agent = agent_task_dist_mat.shape[0]
+        self.num_task = agent_task_dist_mat.shape[1]
+        self.agent_task_dist_mat = agent_task_dist_mat.copy()
+        self.task_dist_mat = task_dist_mat.copy()
+
+        # print('Start GA optimization.')
+        population_size = 50    # 种群规模
+        max_iteration_num = 400 # 最大迭代次数
+
+        # 初始种群
+        population = [GATaskAllocationPlanner.Gene(self.num_task, self.num_agent)\
+            for i in range(population_size)]
+        for i_iteration in range(max_iteration_num):
+            # 种群各父代繁殖产生子代构成子代种群
+            child_population = []
+            for gene in population:
+                child_population = child_population + self.gene_reproduct(gene)
+            # 种群选择，选择规模与父代规模相同
+            population = self.population_filter(child_population, population_size)
+            
+            
+        return self.gene_decode(population[0])
+
+
+    # 遗传算法任务分配函数
     # agent_poses: 智能体初始位置
     # task_poses:  任务点位置
     def ga_allocate(self, agent_poses:List[Pose2D], task_poses:List[Pose2D]) -> List[List[int]]:
@@ -244,6 +272,26 @@ class GATaskAllocationPlanner:
             for task in schedules[i_agent]:
                 agent_distances[i_agent] += self.time_estimate_func(agent_pose, task_poses[task])
                 agent_pose = task_poses[task]
+        total_distance = 0
+        for i_agent in range(num_agent):
+            total_distance += agent_distances[i_agent]
+        return total_distance
+    
+    # 任务分配距离代价评估函数
+    # at_mat: 智能体到任务距离矩阵(num_agent, num_task)
+    # task_mat:  任务之间距离矩阵
+    # schedules:   智能体任务序列
+    def allocation_distance_eval_mat(self, at_mat:np.ndarray, task_mat:np.ndarray,
+                                  schedules:List[list]):
+        num_agent = at_mat.shape[0]
+        num_task = task_mat.shape[0]
+        agent_distances = [0 for i_agent in range(num_agent)]
+        for i_agent in range(num_agent):
+            if len(schedules[i_agent]) == 0:
+                continue
+            agent_distances[i_agent] += at_mat[i_agent, schedules[i_agent][0]]
+            for i in range(1, len(schedules[i_agent])):
+                agent_distances[i_agent] += task_mat[schedules[i_agent][i-1], schedules[i_agent][i]]
         total_distance = 0
         for i_agent in range(num_agent):
             total_distance += agent_distances[i_agent]

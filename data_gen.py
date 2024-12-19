@@ -59,6 +59,7 @@ class AllocationDatasetGen():
             tasks = map.tasks_grid
             points = np.concatenate((starts, tasks), axis=0)
             # 下三角矩阵
+            time_start = TM.time()
             costmat = np.full((n_robot+n_task, n_robot+n_task),fill_value=-1.0,dtype=float)
             for j in range(n_robot+n_task):
                 for k in range(j+1):
@@ -66,7 +67,13 @@ class AllocationDatasetGen():
                     costmat[j, k] = astar_planner.plan(points[j], points[k],path_flag=False)
                     # 对称矩阵
                     costmat[k, j] = costmat[j, k]
-
+            time_end = TM.time()
+            time_cost = time_end - time_start
+            map_info = {
+                "time_cost": time_cost
+            }
+            with open(os.path.join(dir_name_map, "map_info.json"), "w") as json_file:
+                json.dump(map_info, json_file, indent=4)
             # Save cost matrix to a npy file
             np.save(os.path.join(dir_name_map, "costmat.npy"), costmat)
 
@@ -115,6 +122,51 @@ class AllocationDatasetGen():
                 _n_task = int(rng.integers(self.n_task_min, self.n_task_max + 1))
                 _n_obstacle = int(rng.integers(self.n_obstacle_min, self.n_obstacle_max + 1))
                 futures.append(executor.submit(self.allocationBatchGen, dir_name, rng, self.batch_size, _n_robot, _n_task, _n_obstacle))
+            i=0
+            for future in futures:
+                future.result()
+                logging.info(f"Allocation Process {i+1}/{self.n_batch} completed")
+                i+=1
+
+    def AllocationDatasetGenByList(self, n_robot_list, n_task_list, n_obstacle_list):
+        n_rlist = len(n_robot_list)
+        n_tlist = len(n_task_list)
+        n_olist = len(n_obstacle_list)
+        self.n_batch = n_rlist*n_tlist*n_olist
+        os.makedirs(self.dir, exist_ok=True)
+        dataset_info = {
+            "time": TM.strftime("%Y-%m-%d %H:%M", TM.localtime()),
+            "n_batch": self.n_batch,
+            "batch_size": self.batch_size,
+            "seed": self.seed,
+            "n_robot_min": self.n_robot_min,
+            "n_robot_max": self.n_robot_max,
+            "n_task_min": self.n_task_min,
+            "n_task_max": self.n_task_max,
+            "n_obstacle_min": self.n_obstacle_min,
+            "n_obstacle_max": self.n_obstacle_max,
+            "ob_points": self.ob_points,
+            "n_x": self.n_x,
+            "n_y": self.n_y,
+            "resolution_x": self.resolution_x,
+            "resolution_y": self.resolution_y
+        }
+        with open(os.path.join(self.dir, "dataset_info.json"), "w") as json_file:
+            json.dump(dataset_info, json_file, indent=4)
+
+        rng = np.random.default_rng(self.seed)
+
+        with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+            futures = []
+            for i in range(n_rlist):
+                for j in range(n_tlist):
+                    for k in range(n_olist):
+                        dir_name = os.path.join(self.dir, f"batch_{i*n_tlist*n_olist+j*n_olist+k}")
+                        os.makedirs(dir_name, exist_ok=True)
+                        _n_robot = n_robot_list[i]
+                        _n_task = n_task_list[j]
+                        _n_obstacle = n_obstacle_list[k]
+                        futures.append(executor.submit(self.allocationBatchGen, dir_name, rng, self.batch_size, _n_robot, _n_task, _n_obstacle))
             i=0
             for future in futures:
                 future.result()
@@ -481,9 +533,42 @@ def gen_exp_test():
     intention_dataset_gen.IntentionDatasetGen()
     logging.info('intention dataset done')
 
+
+def gen_allo_compare():
+    dir_allocation = "/home/data/wzr/no_com_1/data/allocation_compare_1"
+    n_robot_list = [2,4,6,8]
+    n_task_list = [5,10,15,20]
+    n_obstacle_list = [5,10,15,20]
+    n_batch = 64
+    batch_size = 100
+    n_x = 156
+    n_y = 156
+    resolution_x = 0.05
+    resolution_y = 0.05
+    ob_points = 4
+    seed = 2025
+    n_workers = 64
+    n_robot_min = 2
+    n_robot_max = 8
+    n_task_min = 5
+    n_task_max = 20
+    n_obstacle_min = 5
+    n_obstacle_max = 20
+
+    logging.basicConfig(filename='/home/data/wzr/no_com_1/log/2024_12/datagen_time_{}.log'.format(TM.strftime("%Y-%m-%d-%H-%M", TM.localtime())),
+                         level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logging.info('BEGIN')
+
+    allocation_dataset_gen = AllocationDatasetGen(dir_allocation, n_batch, batch_size, n_robot_min, n_robot_max, n_task_min, n_task_max,
+                                                    n_obstacle_min, n_obstacle_max, ob_points, seed, n_x, n_y, resolution_x, resolution_y, n_workers)
+    allocation_dataset_gen.AllocationDatasetGenByList(n_robot_list, n_task_list, n_obstacle_list)
+
+    logging.info('allocation dataset done')
+
 if __name__ == '__main__':
     # gen_2024()
-    gen_exp_2024()
+    # gen_exp_2024()
+    gen_allo_compare()
     
     
 
