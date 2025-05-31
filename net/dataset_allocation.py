@@ -75,6 +75,7 @@ class AllocationDataset(Dataset):
             raise ValueError("n_batch exceeds the maximum value")
 
         #读取各个batch
+        #TODO: 文件密集型操作，可以使用多线程
         self.batchs = []
         self.n_batch = n_batch
         for i in range(n_batch):

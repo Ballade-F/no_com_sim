@@ -4,7 +4,8 @@ import time
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from allocation import AllocationNet
+# from allocation import AllocationNet
+from allocation_v2 import AllocationNet_v2
 from dataset_allocation import AllocationDataset
 from scipy.stats import ttest_rel
 import time as TM
@@ -81,8 +82,8 @@ def train_allocation_net():
     
 
     # Initialize model, loss function, and optimizer
-    model_train = AllocationNet(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
-    model_target = AllocationNet(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
+    model_train = AllocationNet_v2(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
+    model_target = AllocationNet_v2(n_ob_points, embedding_size, batch_size, attention_head, C=C,device=DEVICE).to(DEVICE)
 
     optimizer = optim.Adam(model_train.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_step, gamma=lr_gamma)

@@ -43,15 +43,22 @@ class AllocationNet_v2(nn.Module):
         # 嵌入
         self.embedding_rt = nn.Linear(rt_dim, embedding_size)
         nn.init.kaiming_normal_(self.embedding_rt.weight)
+
         self.embedding_ob = nn.Linear(ob_dim, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_ob.weight)
+        self.embedding_ob_1 = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_ob.weight)
+        self.embedding_ob_2 = nn.Linear(embedding_size, embedding_size)
+        nn.init.kaiming_normal_(self.embedding_ob.weight)
+        self.embedding_ob_3 = nn.Linear(embedding_size, embedding_size)
         nn.init.kaiming_normal_(self.embedding_ob.weight)
 
         # encoder
         # local embedding
-        self.local_encoder_layers = nn.ModuleList([
-            SelfAttentionBlock(embedding_size, attention_head)
-            for _ in range(local_embed_layers)
-        ])
+        # self.local_encoder_layers = nn.ModuleList([
+        #     SelfAttentionBlock(embedding_size, attention_head)
+        #     for _ in range(local_embed_layers)
+        # ])
         # global encoding
         self.encoder_layers = nn.ModuleList([
             SelfAttentionBlock(embedding_size, attention_head)
@@ -88,10 +95,13 @@ class AllocationNet_v2(nn.Module):
         
         # local embedding
         if self.ob_n > 0:
-            x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
-            for layer in self.local_encoder_layers:
-                x_ob = layer(x_ob)
-            x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
+            # x_ob = x_ob.reshape(self.batch_size*self.ob_n, self.ob_points, self.embedding_size)
+            # for layer in self.local_encoder_layers:
+            #     x_ob = layer(x_ob)
+            # x_ob = x_ob.reshape(self.batch_size, self.ob_n, self.ob_points, self.embedding_size)
+            x_ob = self.embedding_ob_1(x_ob)
+            x_ob = self.embedding_ob_2(x_ob)
+            x_ob = self.embedding_ob_3(x_ob)
         x_ob = torch.mean(x_ob, dim=2) #(batch, obstacle_n, embedding_size)
         
         # global encoding

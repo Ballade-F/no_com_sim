@@ -72,7 +72,7 @@ class GATaskAllocationPlanner:
 
         # print('Start GA optimization.')
         population_size = 50    # 种群规模
-        max_iteration_num = 400 # 最大迭代次数
+        max_iteration_num = 500 # 最大迭代次数
 
         # 初始种群
         population = [GATaskAllocationPlanner.Gene(self.num_task, self.num_agent)\
@@ -83,7 +83,7 @@ class GATaskAllocationPlanner:
             for gene in population:
                 child_population = child_population + self.gene_reproduct(gene)
             # 种群选择，选择规模与父代规模相同
-            population = self.population_filter(child_population, population_size)
+            population = self.population_filter(child_population, population_size, distance_flag=True)
             
             
         return self.gene_decode(population[0])
@@ -134,10 +134,10 @@ class GATaskAllocationPlanner:
     # 种群筛选函数
     # population: 种群 基因型列表
     # num:        目标种群规模
-    def population_filter(self, population:List[Gene], num:int):
+    def population_filter(self, population:List[Gene], num:int, distance_flag=False) -> List[Gene]:
         # 排序种群及其适应度列表
         sort_population = deepcopy(population)
-        sort_population_fitnesses = [self.gene_fitness(gene) for gene in population]
+        sort_population_fitnesses = [self.gene_fitness(gene,distance_flag) for gene in population]
         # 冒泡排序 次数与目标种群规模相同 后面部分不需要排序
         for i_gene in range(num):
             for i_gene1 in range(i_gene+1, len(sort_population)):
@@ -212,21 +212,26 @@ class GATaskAllocationPlanner:
 
     # 基因适应度计算函数
     # gene: 基因型
-    def gene_fitness(self, gene:Gene) -> float:
+    def gene_fitness(self, gene:Gene, distance_flag=False) -> float:
         agent_schedules = self.gene_decode(gene)
         agent_rewards = [0 for i_agent in range(self.num_agent)]
+        agent_distance = [0 for i_agent in range(self.num_agent)]
         for i_agent in range(self.num_agent):
             schedule = agent_schedules[i_agent]
             if len(schedule) < 1:
                 continue
-            agent_time_distance = self.agent_task_dist_mat[i_agent, schedule[0]]
-            agent_rewards[i_agent] = math.exp(-self.reward_time_decay * agent_time_distance)
+            agent_distance[i_agent] = self.agent_task_dist_mat[i_agent, schedule[0]]
+            agent_rewards[i_agent] = math.exp(-self.reward_time_decay * agent_distance[i_agent])
             for i_task in range(1, len(schedule)):
-                agent_time_distance += self.task_dist_mat[schedule[i_task - 1], schedule[i_task]]
-                agent_rewards[i_agent] += math.exp(-self.reward_time_decay * agent_time_distance)
+                agent_distance[i_agent] += self.task_dist_mat[schedule[i_task - 1], schedule[i_task]]
+                agent_rewards[i_agent] += math.exp(-self.reward_time_decay * agent_distance[i_agent])
         total_reward = 0.0
+        total_distance = 0.0
         for i_agent in range(self.num_agent):
             total_reward += agent_rewards[i_agent]
+            total_distance += agent_distance[i_agent]
+        if distance_flag:
+            total_reward = -total_distance
         return total_reward
 
     # 基因译码函数

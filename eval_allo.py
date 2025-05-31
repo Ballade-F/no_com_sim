@@ -19,6 +19,7 @@ import task_allocation.hungarian as hungarian
 import task_allocation.greedy_allocation_lib as greedy
 import task_allocation.ga_allocation_lib as ga
 import net.allocation as allocation
+import net.allocation_v2 as allocation_v2
 from concurrent.futures import ProcessPoolExecutor
 
 class evalData():
@@ -245,6 +246,68 @@ def eval_net():
                 writer.writerow([i,j,save_n_r[i],save_n_t[i],save_n_o[i],save_time[i,j],save_distance[i,j]])
     print("eval_net done")
 
+def eval_net_compare():
+    DEVICE = torch.device("cpu")
+    n_x = 156
+    n_y = 156
+    resolution_x = 0.05
+    resolution_y = 0.05
+    norm_factor = 1/ 156 / 0.05
+    mapset_dir = '/home/data/wzr/no_com_1/data/allocation_compare_1'
+    csv_dir = '/home/data/wzr/no_com_1/log/exp_result'
+    #读取batch_size信息json文件
+    dataset_info = os.path.join(mapset_dir, "dataset_info.json")
+    with open(dataset_info, "r") as f:
+        dataset_info = json.load(f)
+
+    # batch_size = dataset_info["batch_size"]
+    batch_size = 100
+    n_batch = dataset_info["n_batch"]
+    ob_points = dataset_info["ob_points"]
+    
+    batchs = []
+    for i in range(n_batch):
+        dir = os.path.join(mapset_dir, f"batch_{i}")
+        batchs.append(evalData(dir,norm_factor))
+
+    eval_net = allocation_v2.AllocationNet_v2(4, 128, 1, 8 )
+    model_path = '/home/data/wzr/no_com_1/model/allocation/2024_12_19_compare_0/time_2024-12-19-22-49-32_dis_24.96.pt'
+    eval_net.load_state_dict(torch.load(model_path))
+    eval_net.eval()
+
+    save_n_r = np.zeros((n_batch),dtype=int)
+    save_n_t = np.zeros((n_batch),dtype=int)
+    save_n_o = np.zeros((n_batch),dtype=int)
+    save_time = np.zeros((n_batch,batch_size),dtype=float)
+    save_distance = np.zeros((n_batch,batch_size),dtype=float)
+
+    for i in range(n_batch):
+        print(f"batch {i}")
+        for j in range(batch_size):
+            net_r_f = torch.tensor(batchs[i].feature_robot[j],dtype=torch.float32).unsqueeze(0)
+            net_t_f = torch.tensor(batchs[i].feature_task[j],dtype=torch.float32).unsqueeze(0)
+            net_o_f = torch.tensor(batchs[i].feature_obstacle[j],dtype=torch.float32).unsqueeze(0)
+            net_c_m = torch.tensor(batchs[i].costmats[j],dtype=torch.float32).unsqueeze(0)
+            eval_net.config(batchs[i].cfg)
+            time_start = time.time()
+            with torch.no_grad():
+                seq, pro, distance_net = eval_net(net_r_f,net_t_f,net_o_f,net_c_m)
+            time_end = time.time()
+            save_time[i,j] = time_end-time_start
+            save_distance[i,j] = distance_net
+
+        save_n_r[i] = batchs[i].n_robot
+        save_n_t[i] = batchs[i].n_task
+        save_n_o[i] = batchs[i].n_obstacle
+    
+    with open(os.path.join(csv_dir, "eval_net_compare.csv"), "w", newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["batch_id","map_id","n_robot","n_task","n_obstacle","time","distance"])
+        for i in range(n_batch):
+            for j in range(batch_size):
+                writer.writerow([i,j,save_n_r[i],save_n_t[i],save_n_o[i],save_time[i,j],save_distance[i,j]])
+    print("eval_net_compare done")
+
 def eval_greedy():
     n_x = 156
     n_y = 156
@@ -334,10 +397,12 @@ def eval_ga():
         save_n_t[i] = batchs[i].n_task
         save_n_o[i] = batchs[i].n_obstacle
 
-    n_workers = 64
+    n_workers = 80
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         futures = []
         for i in range(n_batch):
+            if i >47:
+                continue
             for j in range(batch_size):
                 ga_rt_mat = batchs[i].costmats[j, :batchs[i].n_robot, batchs[i].n_robot:]
                 ga_tt_mat = batchs[i].costmats[j, batchs[i].n_robot:, batchs[i].n_robot:]
@@ -351,7 +416,7 @@ def eval_ga():
             if counter % 100 == 0:
                 print(f"counter: {counter}")
 
-    with open(os.path.join(csv_dir, "eval_ga.csv"), "w", newline='') as csv_file:
+    with open(os.path.join(csv_dir, "eval_ga_0.csv"), "w", newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(["batch_id","map_id","n_robot","n_task","n_obstacle","time","distance"])
         for i in range(n_batch):
@@ -368,10 +433,102 @@ def _ga_process(batch_idx, map_idx,rt_mat,tt_mat):
     distance_ga = eval_ga.allocation_distance_eval_mat(rt_mat, tt_mat, schedules_ga)
     return batch_idx, map_idx, used_time, distance_ga
 
+
+def get_schedule():
+    #在nr=4，nt=20，nob=20的地图里面找一张，打印出四种方法的分配方案
+    N_r = 4
+    N_t = 20
+    N_ob = 20
+    norm_factor = 1/ 156 / 0.05
+    mapset_dir = '/home/data/wzr/no_com_1/data/allocation_compare_1'
+    #读取batch_size信息json文件
+    dataset_info = os.path.join(mapset_dir, "dataset_info.json")
+    with open(dataset_info, "r") as f:
+        dataset_info = json.load(f)
+
+    batch_id = 1*16 + 3*4 + 3
+    map_id = 30
+    dir = os.path.join(mapset_dir, f"batch_{batch_id}")
+    batch = evalData(dir,norm_factor)
+    
+    # net
+    eval_net = allocation.AllocationNet(4, 128, 1, 8 )
+    model_path = '/home/data/wzr/no_com_1/model/allocation/2024_12_12_exp_0/time_2024-12-13-11-11-11_dis_23.44.pt'
+    eval_net.load_state_dict(torch.load(model_path,weights_only=True))
+    eval_net.eval()
+    eval_net.is_train = False
+    net_r_f = torch.tensor(batch.feature_robot[map_id],dtype=torch.float32).unsqueeze(0)
+    net_t_f = torch.tensor(batch.feature_task[map_id],dtype=torch.float32).unsqueeze(0)
+    net_o_f = torch.tensor(batch.feature_obstacle[map_id],dtype=torch.float32).unsqueeze(0)
+    net_c_m = torch.tensor(batch.costmats[map_id],dtype=torch.float32).unsqueeze(0)
+    eval_net.config(batch.cfg)
+    with torch.no_grad():
+        seq, pro, distance_net = eval_net(net_r_f,net_t_f,net_o_f,net_c_m)
+    # 把seq切分成nr个list
+    seq = (seq[0] - N_r).tolist()
+    seq_list = []
+    for i in range(N_r):
+        seq_list.append([])
+    i_r = 0
+    for idx in range(len(seq)):
+        if seq[idx] < 0:
+            i_r = seq[idx] + N_r
+        else:
+            seq_list[i_r].append(seq[idx])
+    print("net")
+    print(seq_list," ",distance_net)
+
+    # compare
+    eval_net = allocation_v2.AllocationNet_v2(4, 128, 1, 8 )
+    model_path = '/home/data/wzr/no_com_1/model/allocation/2024_12_19_compare_0/time_2024-12-19-22-49-32_dis_24.96.pt'
+    eval_net.load_state_dict(torch.load(model_path,weights_only=True))
+    eval_net.eval()
+    eval_net.is_train = False
+    net_r_f = torch.tensor(batch.feature_robot[map_id],dtype=torch.float32).unsqueeze(0)
+    net_t_f = torch.tensor(batch.feature_task[map_id],dtype=torch.float32).unsqueeze(0)
+    net_o_f = torch.tensor(batch.feature_obstacle[map_id],dtype=torch.float32).unsqueeze(0)
+    net_c_m = torch.tensor(batch.costmats[map_id],dtype=torch.float32).unsqueeze(0)
+    eval_net.config(batch.cfg)
+    with torch.no_grad():
+        seq, pro, distance_net = eval_net(net_r_f,net_t_f,net_o_f,net_c_m)
+    # 把seq切分成nr个list
+    seq = (seq[0] - N_r).tolist()
+    seq_list = []
+    for i in range(N_r):
+        seq_list.append([])
+    i_r = 0
+    for idx in range(len(seq)):
+        if seq[idx] < 0:
+            i_r = seq[idx] + N_r
+        else:
+            seq_list[i_r].append(seq[idx])
+    print("compare")
+    print(seq_list," ",distance_net)
+
+    # greedy
+    greedy_rt_mat = batch.costmats[map_id, :batch.n_robot, batch.n_robot:] #(n_robot,n_task)
+    greedy_tt_mat = batch.costmats[map_id, batch.n_robot:, batch.n_robot:] #(
+    eval_greedy = greedy.GreedyTaskAllocationPlanner()
+    schedules_greedy = eval_greedy.greedy_allocate_mat(greedy_rt_mat, greedy_tt_mat)
+    distance_greedy = eval_greedy.allocation_distance_eval_mat(greedy_rt_mat, greedy_tt_mat, schedules_greedy)
+    print("greedy")
+    print(schedules_greedy," ",distance_greedy)
+
+    # ga
+    eval_ga = ga.GATaskAllocationPlanner()
+    schedules_ga = eval_ga.ga_allocate_mat(greedy_rt_mat, greedy_tt_mat)
+    distance_ga = eval_ga.allocation_distance_eval_mat(greedy_rt_mat, greedy_tt_mat, schedules_ga)
+    print("ga")
+    print(schedules_ga," ",distance_ga)
+
+
+
 if __name__ == "__main__":
     # eval_greedy()
     # eval_ga()
     # eval_net()
-    read_time_cost()
+    # eval_net_compare()
+    # read_time_cost()
+    get_schedule()
     
 

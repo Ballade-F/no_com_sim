@@ -40,7 +40,11 @@ def allocation_export():
     allocation_model_dir = '/home/data/wzr/no_com_1/model/allocation/2024_12_12_exp_0/time_2024-12-13-11-11-11_dis_23.44.pt'
     allocation_model = AllocationNet(16, 128, 128, 8)
     allocation_model.load_state_dict(torch.load(allocation_model_dir))
-    allocation_model.config_export()
+    # allocation_model.config_export()
+    allocation_model.is_train = False
+    allocation_model.exp_flag = False
+    allocation_model.batch_size = 1
+    allocation_model.eval()
     traced_script_module = torch.jit.script(allocation_model)
     traced_script_module.config_script(2, 3, 1, 1, 4,'cpu')
     x_r = torch.randn(1, 2, 3)
@@ -54,7 +58,7 @@ def allocation_export():
     allocation_model.config_script(2, 3, 1, 1, 4,'cpu')
     # output = allocation_model(x_r, x_t, x_ob,nothing)
     print(output)
-    traced_script_module.save("allocation_model.pt")
+    traced_script_module.save("allocation_model_refer.pt")
     
 
     # allocation_model = AllocationNet(4, 128, 1, 8)
@@ -67,7 +71,7 @@ def allocation_export():
     # print(output)
 
 if __name__ == "__main__":
-    intention_export()
+    # intention_export()
     allocation_export()
     
     
